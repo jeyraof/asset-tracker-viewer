@@ -91,6 +91,13 @@ function detail(
   };
 }
 
+function parseDataPoints(page: string): unknown[][] {
+  const match = /data-points="([^"]*)"/.exec(page);
+  if (!match || match[1] === undefined) throw new Error("data-points attribute not found");
+  const decoded = match[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  return JSON.parse(decoded) as unknown[][];
+}
+
 describe("history section", () => {
   it("renders a net-asset chart with the table collapsed", () => {
     const page = accountPage(
@@ -116,6 +123,31 @@ describe("history section", () => {
     const chart = page.slice(page.indexOf('<figure class="chart"'), page.indexOf("<details>"));
     expect(chart.indexOf("2026-09-22")).toBeGreaterThan(-1);
     expect(chart.indexOf("2026-09-22")).toBeLessThan(chart.indexOf("2026-09-24"));
+  });
+
+  it("embeds interactive chart points and controls", () => {
+    const page = accountPage(
+      detail({
+        history: [
+          point({ date: "2026-09-24", netAssetAmount: 200, evalPflsAmount: 20 }),
+          point({ date: "2026-09-23", netAssetAmount: 100, evalPflsAmount: 10 }),
+        ],
+      }),
+    ).value;
+
+    expect(page).toContain("평균");
+    expect(page).toContain('<div class="chart-plot" tabindex="0"');
+    expect(page).toContain('class="cursor" hidden');
+    expect(page).toContain('class="chart-tip" hidden');
+    expect(page).toContain('class="chart-hint" hidden');
+    expect(page).toContain('class="visually-hidden"');
+
+    const points = parseDataPoints(page);
+    expect(points).toHaveLength(2);
+    expect(points[0]?.[2]).toBe("2026-09-23");
+    expect(points[1]?.[2]).toBe("2026-09-24");
+    expect(String(points[1]?.[3])).toContain("200");
+    expect(String(points[1]?.[4])).toContain("평가손익");
   });
 
   it("handles a single snapshot without producing NaN", () => {
@@ -310,6 +342,11 @@ describe("accountsPage", () => {
     expect(page).not.toContain("<details open");
     expect(page).not.toContain("NaN");
     expect(page).toContain("+₩19 (+1.48%)");
+    expect(page).toContain("평균");
+
+    const points = parseDataPoints(page);
+    expect(points).toHaveLength(2);
+    expect(String(points[1]?.[4])).toContain("전일 대비");
   });
 
   it("shows no change for the oldest fx row", () => {

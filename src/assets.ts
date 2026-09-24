@@ -92,6 +92,17 @@ input {
 .spark { display: block; width: 100%; height: 160px; }
 .spark .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
 .spark .area { fill: var(--accent-soft); stroke: none; }
+.chart-plot { position: relative; }
+.chart-hint { display: none; }
+.chart.is-enhanced .chart-hint { display: inline; }
+.cursor-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--accent); opacity: 0.55; }
+.cursor-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-sizing: border-box; }
+.chart-tip { position: absolute; z-index: 2; pointer-events: none; min-width: 7rem; padding: 0.4rem 0.55rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); font-size: 0.8rem; line-height: 1.35; }
+.chart-tip[hidden] { display: none; }
+.chart-tip .tip-time { color: var(--muted); font-size: 0.92em; }
+.chart-tip .tip-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-tip .tip-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 ${WIDTH_CLASSES}
 ${COLOR_CLASSES}
 details { margin-top: 0.5rem; }
@@ -263,10 +274,137 @@ export const CLIENT_JS = `(function () {
     return el ? el.value : undefined;
   }
 
+  function nearestIndex(points, ratio) {
+    const target = ratio * 100;
+    let best = 0;
+    let bestDistance = Infinity;
+    for (let i = 0; i < points.length; i += 1) {
+      const distance = Math.abs(points[i][0] - target);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = i;
+      }
+    }
+    return best;
+  }
+
+  function enhanceChart(figure) {
+    let points;
+    try {
+      points = JSON.parse(figure.getAttribute("data-points") || "[]");
+    } catch (error) {
+      return;
+    }
+    if (!points || !points.length) return;
+
+    const plot = figure.querySelector(".chart-plot");
+    const cursor = figure.querySelector(".cursor");
+    const line = figure.querySelector(".cursor-line");
+    const dot = figure.querySelector(".cursor-dot");
+    const tip = figure.querySelector(".chart-tip");
+    const tipTime = figure.querySelector(".tip-time");
+    const tipValue = figure.querySelector(".tip-value");
+    const tipSub = figure.querySelector(".tip-sub");
+    const live = figure.querySelector(".visually-hidden");
+    if (!plot || !cursor || !line || !dot || !tip) return;
+
+    let index = -1;
+    let pinned = false;
+
+    function render(i) {
+      index = i;
+      const point = points[i];
+      const width = plot.clientWidth;
+      const height = plot.clientHeight;
+      const left = (point[0] / 100) * width;
+      const top = (point[1] / 100) * height;
+      cursor.hidden = false;
+      line.style.left = left + "px";
+      dot.style.left = left + "px";
+      dot.style.top = top + "px";
+      tipTime.textContent = point[2];
+      tipValue.textContent = point[3];
+      if (point[4]) {
+        tipSub.textContent = point[4];
+        tipSub.hidden = false;
+      } else {
+        tipSub.textContent = "";
+        tipSub.hidden = true;
+      }
+      tip.hidden = false;
+      const tipWidth = tip.offsetWidth;
+      const tipHeight = tip.offsetHeight;
+      let tipLeft = left;
+      if (tipLeft - tipWidth / 2 < 0) tipLeft = tipWidth / 2;
+      if (tipLeft + tipWidth / 2 > width) tipLeft = width - tipWidth / 2;
+      let tipTop = top - tipHeight - 10;
+      if (tipTop < 0) tipTop = top + 12;
+      tip.style.left = tipLeft + "px";
+      tip.style.top = tipTop + "px";
+      if (live) live.textContent = point[2] + " " + point[3] + (point[4] ? ", " + point[4] : "");
+    }
+
+    function hide() {
+      if (pinned) return;
+      cursor.hidden = true;
+      tip.hidden = true;
+      index = -1;
+    }
+
+    function indexFromX(clientX) {
+      const rect = plot.getBoundingClientRect();
+      if (rect.width <= 0) return 0;
+      return nearestIndex(points, (clientX - rect.left) / rect.width);
+    }
+
+    plot.addEventListener("pointermove", function (event) {
+      if (event.pointerType === "mouse") render(indexFromX(event.clientX));
+    });
+    plot.addEventListener("pointerleave", function () {
+      hide();
+    });
+    plot.addEventListener("pointerdown", function (event) {
+      if (event.pointerType === "mouse") return;
+      pinned = true;
+      render(indexFromX(event.clientX));
+    });
+    plot.addEventListener("keydown", function (event) {
+      let next = index;
+      if (event.key === "ArrowRight") next = index < 0 ? 0 : Math.min(points.length - 1, index + 1);
+      else if (event.key === "ArrowLeft") next = index < 0 ? points.length - 1 : Math.max(0, index - 1);
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = points.length - 1;
+      else if (event.key === "Escape") {
+        pinned = false;
+        hide();
+        return;
+      } else {
+        return;
+      }
+      event.preventDefault();
+      render(next);
+    });
+    plot.addEventListener("blur", function () {
+      pinned = false;
+      hide();
+    });
+    window.addEventListener("resize", function () {
+      if (index >= 0) render(index);
+    });
+
+    figure.classList.add("is-enhanced");
+  }
+
+  function enhanceCharts() {
+    const charts = document.querySelectorAll(".chart[data-points]");
+    for (let i = 0; i < charts.length; i += 1) enhanceChart(charts[i]);
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     const page = document.body.dataset.page;
     const loginButton = document.getElementById("login-button");
     const registerButton = document.getElementById("register-button");
+    enhanceCharts();
 
     if (page === "login" && loginButton) {
       loginButton.addEventListener("click", async function () {

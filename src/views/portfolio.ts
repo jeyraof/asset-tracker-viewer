@@ -8,6 +8,7 @@ import type {
 } from "../db/portfolio";
 import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuantity, formatSignedMoney, pnlClass } from "../lib/format";
 import { html, type SafeHtml } from "../lib/html";
+import { areaPoints, linePoints, plotCoords, serializeChartPoints } from "../lib/chartData";
 import { countryFlag, providerName } from "../lib/labels";
 import { layout } from "./layout";
 
@@ -211,52 +212,56 @@ function historyTable(points: SnapshotPoint[], currency: string): SafeHtml {
 </table>`;
 }
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+interface TrendPoint {
+  date: string;
+  value: number;
+  sub: string | null;
 }
 
-function chartGeometry(data: { value: number }[]): { line: string; area: string } {
-  const values = data.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min;
-  const count = data.length;
-
-  const coords = data.map((point, index) => {
-    const x = count === 1 ? 50 : (index / (count - 1)) * 100;
-    const normalized = range === 0 ? 0.5 : (point.value - min) / range;
-    return { x: round2(x), y: round2(95 - normalized * 90) };
-  });
-
-  const line = coords.map((coord) => `${coord.x},${coord.y}`).join(" ");
-  const firstX = coords[0]?.x ?? 0;
-  const lastX = coords[coords.length - 1]?.x ?? 100;
-  return { line, area: `${firstX},100 ${line} ${lastX},100` };
-}
-
-/** Trend as an inline SVG line; no inline styles or scripts, so CSP stays strict. */
+/** Trend as an inline SVG line plus an HTML cursor overlay enhanced by /client.js. */
 function trendChart(
-  data: { date: string; value: number }[],
+  data: readonly TrendPoint[],
   options: { ariaLabel: string; formatValue: (value: number) => string },
 ): SafeHtml {
   if (data.length === 0) return html``;
 
   const values = data.map((point) => point.value);
+  const coords = plotCoords(values);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
   const first = data[0];
   const latest = data[data.length - 1];
-  const { line, area } = chartGeometry(data);
+  const dataPoints = serializeChartPoints(
+    data.map((point, index) => ({
+      x: coords[index]?.x ?? 0,
+      y: coords[index]?.y ?? 0,
+      date: point.date,
+      value: options.formatValue(point.value),
+      sub: point.sub ?? "",
+    })),
+  );
 
-  return html`<figure class="chart">
+  return html`<figure class="chart" data-points="${dataPoints}">
   <figcaption class="chart-head">
     <span>최고 ${options.formatValue(Math.max(...values))}</span>
     <span class="muted">최저 ${options.formatValue(Math.min(...values))}</span>
+    <span class="muted">평균 ${options.formatValue(average)}</span>
   </figcaption>
-  <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${options.ariaLabel}">
-    <polygon class="area" points="${area}"></polygon>
-    <polyline class="line" points="${line}"></polyline>
-  </svg>
+  <div class="chart-plot" tabindex="0" role="group" aria-label="${options.ariaLabel}">
+    <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon class="area" points="${areaPoints(coords)}"></polygon>
+      <polyline class="line" points="${linePoints(coords)}"></polyline>
+    </svg>
+    <div class="cursor" hidden><span class="cursor-line"></span><span class="cursor-dot"></span></div>
+    <div class="chart-tip" hidden>
+      <div class="tip-time"></div>
+      <div class="tip-value"></div>
+      <div class="tip-sub"></div>
+    </div>
+    <span class="visually-hidden" aria-live="polite"></span>
+  </div>
   <div class="chart-foot muted">
     <span>${formatDate(first?.date)}</span>
+    <span class="chart-hint" hidden>마우스를 올리면 표시되고, 터치하면 선택한 값이 고정됩니다.</span>
     <span>${formatDate(latest?.date)}</span>
   </div>
 </figure>`;
@@ -267,7 +272,11 @@ function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
     .filter((point): point is SnapshotPoint & { netAssetAmount: number } =>
       point.netAssetAmount != null && Number.isFinite(point.netAssetAmount),
     )
-    .map((point) => ({ date: point.date, value: point.netAssetAmount }))
+    .map((point) => ({
+      date: point.date,
+      value: point.netAssetAmount,
+      sub: point.evalPflsAmount != null ? `평가손익 ${formatSignedMoney(point.evalPflsAmount, currency)}` : null,
+    }))
     .reverse();
   return trendChart(data, {
     ariaLabel: "순자산 추이",
@@ -349,10 +358,17 @@ function fxTable(rates: FxRate[]): SafeHtml {
 
 export function fxPage(base: string, quote: string, rates: FxRate[]): SafeHtml {
   const latest = rates[0] ?? null;
-  const data = rates
-    .slice()
-    .reverse()
-    .map((rate) => ({ date: rate.date, value: rate.rate }));
+  const chronological = rates.slice().reverse();
+  const data = chronological.map((rate, index) => {
+    const previous = chronological[index - 1];
+    const change = previous ? rate.rate - previous.rate : null;
+    const pct = previous && previous.rate !== 0 ? ((rate.rate - previous.rate) / previous.rate) * 100 : null;
+    return {
+      date: rate.date,
+      value: rate.rate,
+      sub: change == null ? null : `전일 대비 ${formatSignedMoney(change, "KRW")} (${formatPercent(pct)})`,
+    };
+  });
 
   const body = html`<p><a class="back" href="/">← 계좌 목록</a></p>
 <h2>${base}/${quote} 환율</h2>
