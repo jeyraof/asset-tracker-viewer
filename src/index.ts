@@ -20,6 +20,7 @@ import {
   getAccountSummary,
   getLatestFxRate,
   listAccountSummaries,
+  listFxRates,
   listLatestHoldings,
   listRecentTrades,
   listSnapshotHistory,
@@ -30,7 +31,7 @@ import type { SafeHtml } from "./lib/html";
 import { timingSafeEqualString } from "./lib/secure";
 import { loginPage, registerPage } from "./views/auth";
 import { notFoundPage } from "./views/error";
-import { accountPage, accountsPage } from "./views/portfolio";
+import { accountPage, accountsPage, fxPage } from "./views/portfolio";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
@@ -313,6 +314,12 @@ export default {
           getLatestFxRate(env.DB, "USD", "KRW"),
         ]);
         return htmlResponse(accountsPage(summaries, fx));
+      }
+
+      if (method === "GET" && pathname === "/fx") {
+        if (!(await currentSession(env, request))) return redirect("/login");
+        const rates = await listFxRates(env.DB, "USD", "KRW");
+        return htmlResponse(fxPage("USD", "KRW", rates));
       }
 
       const accountMatch = /^\/accounts\/(\d+)$/.exec(pathname);

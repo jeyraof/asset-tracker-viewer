@@ -287,3 +287,29 @@ export async function getLatestFxRate(
   if (!row) return null;
   return { base: row.base_currency, quote: row.quote_currency, date: row.date, rate: row.rate };
 }
+
+export function listFxRates(
+  db: D1Database,
+  base: string,
+  quote: string,
+  limit = 365,
+): Promise<FxRate[]> {
+  return db
+    .prepare(
+      `SELECT base_currency, quote_currency, date, rate
+         FROM fx_rates
+        WHERE base_currency = ? AND quote_currency = ?
+        ORDER BY date DESC
+        LIMIT ?`,
+    )
+    .bind(base, quote, limit)
+    .all<{ base_currency: string; quote_currency: string; date: string; rate: number }>()
+    .then(({ results }) =>
+      (results ?? []).map((row) => ({
+        base: row.base_currency,
+        quote: row.quote_currency,
+        date: row.date,
+        rate: row.rate,
+      })),
+    );
+}

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { accountPage, accountsPage } from "../src/views/portfolio";
+import { accountPage, accountsPage, fxPage } from "../src/views/portfolio";
 import { loginPage, registerPage } from "../src/views/auth";
 import { notFoundPage } from "../src/views/error";
-import type { AccountSummary, Holding, SnapshotPoint, Trade } from "../src/db/portfolio";
+import type { AccountSummary, FxRate, Holding, SnapshotPoint, Trade } from "../src/db/portfolio";
 
 function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSummary {
   return {
@@ -285,6 +285,33 @@ describe("accountsPage", () => {
     const trades = page.slice(page.indexOf("최근 거래"));
     expect(trades).toContain("<table>");
     expect(trades).not.toContain('<table class="responsive">');
+  });
+
+  it("links the fx footer to the fx history page and drops the passkey note", () => {
+    const page = accountsPage([summary({ id: 3, netAssetAmount: 100 })], fx).value;
+    expect(page).toContain('<a href="/fx">USD/KRW');
+    expect(page).not.toContain("passkey로 보호된");
+  });
+
+  it("renders the fx history page with a chart and a collapsed table", () => {
+    const rates: FxRate[] = [
+      { base: "USD", quote: "KRW", date: "2026-09-24", rate: 1299 },
+      { base: "USD", quote: "KRW", date: "2026-09-23", rate: 1280 },
+    ];
+    const page = fxPage("USD", "KRW", rates).value;
+
+    expect(page).toContain("USD/KRW");
+    expect(page).toContain('<svg class="spark"');
+    expect(page).toContain("<details>");
+    expect(page).toContain("표로 보기");
+    expect(page).not.toContain("<details open");
+    expect(page).not.toContain("NaN");
+  });
+
+  it("shows a message when there is no fx history", () => {
+    const page = fxPage("USD", "KRW", []).value;
+    expect(page).toContain("환율 이력이 없습니다.");
+    expect(page).not.toContain('<svg class="spark"');
   });
 
   it("renders auth and error pages", () => {

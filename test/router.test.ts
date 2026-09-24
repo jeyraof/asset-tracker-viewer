@@ -37,6 +37,12 @@ describe("router", () => {
     expect(response.headers.get("location")).toBe("/login");
   });
 
+  it("guards the fx page behind login", async () => {
+    const response = await fetch("/fx");
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/login");
+  });
+
   it("rejects a forged session cookie", async () => {
     const response = await fetch("/", { headers: { cookie: "__Host-session=forged.value" } });
     expect(response.status).toBe(303);

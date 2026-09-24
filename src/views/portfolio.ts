@@ -98,8 +98,7 @@ ${
     : html``
 }`
   }
-${fx ? html`<p class="muted">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</p>` : html``}
-<p class="muted">등록된 passkey로 보호된 조회 전용 페이지입니다.</p>`;
+${fx ? html`<p class="muted"><a href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a></p>` : html``}`;
 
   return layout({ title: "계좌 · Asset Tracker", showNav: true, body });
 }
@@ -219,15 +218,11 @@ function chartGeometry(data: { value: number }[]): { line: string; area: string 
   return { line, area: `${firstX},100 ${line} ${lastX},100` };
 }
 
-/** Net-asset trend as an inline SVG line; no inline styles or scripts, so CSP stays strict. */
-function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
-  const data = points
-    .filter((point): point is SnapshotPoint & { netAssetAmount: number } =>
-      point.netAssetAmount != null && Number.isFinite(point.netAssetAmount),
-    )
-    .map((point) => ({ date: point.date, value: point.netAssetAmount }))
-    .reverse();
-
+/** Trend as an inline SVG line; no inline styles or scripts, so CSP stays strict. */
+function trendChart(
+  data: { date: string; value: number }[],
+  options: { ariaLabel: string; formatValue: (value: number) => string },
+): SafeHtml {
   if (data.length === 0) return html``;
 
   const values = data.map((point) => point.value);
@@ -237,10 +232,10 @@ function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
 
   return html`<figure class="chart">
   <figcaption class="chart-head">
-    <span>최고 ${formatMoney(Math.max(...values), currency)}</span>
-    <span class="muted">최저 ${formatMoney(Math.min(...values), currency)}</span>
+    <span>최고 ${options.formatValue(Math.max(...values))}</span>
+    <span class="muted">최저 ${options.formatValue(Math.min(...values))}</span>
   </figcaption>
-  <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="순자산 추이">
+  <svg class="spark" viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="${options.ariaLabel}">
     <polygon class="area" points="${area}"></polygon>
     <polyline class="line" points="${line}"></polyline>
   </svg>
@@ -249,6 +244,19 @@ function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
     <span>${formatDate(latest?.date)}</span>
   </div>
 </figure>`;
+}
+
+function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
+  const data = points
+    .filter((point): point is SnapshotPoint & { netAssetAmount: number } =>
+      point.netAssetAmount != null && Number.isFinite(point.netAssetAmount),
+    )
+    .map((point) => ({ date: point.date, value: point.netAssetAmount }))
+    .reverse();
+  return trendChart(data, {
+    ariaLabel: "순자산 추이",
+    formatValue: (value) => formatMoney(value, currency),
+  });
 }
 
 function historySection(points: SnapshotPoint[], currency: string): SafeHtml {
@@ -302,4 +310,53 @@ ${historySection(history, account.currency)}
 ${tradesTable(trades, account.currency)}`;
 
   return layout({ title: `${accountTitle(account).primary} · Asset Tracker`, showNav: true, body });
+}
+
+function fxTable(rates: FxRate[]): SafeHtml {
+  if (rates.length === 0) return html`<p class="muted">환율 이력이 없습니다.</p>`;
+  const rows = rates.map(
+    (rate) => html`<tr>
+  <td class="row-title" data-label="기준일">${formatDate(rate.date)}</td>
+  <td class="num" data-label="환율">${formatMoney(rate.rate, "KRW")}</td>
+</tr>`,
+  );
+  return html`<table class="responsive">
+  <thead><tr><th>기준일</th><th>환율</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>`;
+}
+
+export function fxPage(base: string, quote: string, rates: FxRate[]): SafeHtml {
+  const latest = rates[0] ?? null;
+  const data = rates
+    .slice()
+    .reverse()
+    .map((rate) => ({ date: rate.date, value: rate.rate }));
+
+  const body = html`<p><a class="back" href="/">← 계좌 목록</a></p>
+<h2>${base}/${quote} 환율</h2>
+${
+  latest
+    ? html`<div class="card">
+  <dl>
+    <dt>최신 환율</dt><dd>${formatMoney(latest.rate, "KRW")}</dd>
+    <dt>기준일</dt><dd>${formatDate(latest.date)}</dd>
+  </dl>
+</div>`
+    : html`<p class="muted">환율 이력이 없습니다.</p>`
+}
+${trendChart(data, {
+  ariaLabel: `${base}/${quote} 환율 추이`,
+  formatValue: (value) => formatMoney(value, "KRW"),
+})}
+${
+  rates.length > 0
+    ? html`<details>
+  <summary>표로 보기</summary>
+  ${fxTable(rates)}
+</details>`
+    : html``
+}`;
+
+  return layout({ title: `${base}/${quote} 환율 · Asset Tracker`, showNav: true, body });
 }
