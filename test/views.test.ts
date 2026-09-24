@@ -1,0 +1,296 @@
+import { describe, expect, it } from "vitest";
+import { accountPage, accountsPage } from "../src/views/portfolio";
+import { loginPage, registerPage } from "../src/views/auth";
+import { notFoundPage } from "../src/views/error";
+import type { AccountSummary, Holding, SnapshotPoint, Trade } from "../src/db/portfolio";
+
+function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSummary {
+  return {
+    provider: "kis",
+    name: `account-${overrides.id}`,
+    alias: null,
+    country: "KR",
+    currency: "KRW",
+    snapshotDate: "2026-09-24",
+    totalEvalAmount: 0,
+    netAssetAmount: 0,
+    evalPflsAmount: 0,
+    depositTotal: 0,
+    purchaseAmountTotal: 0,
+    securitiesEvalAmount: 0,
+    holdingCount: 0,
+    ...overrides,
+  };
+}
+
+const fx = { base: "USD", quote: "KRW", date: "2026-09-24", rate: 1300 };
+
+function holding(overrides: Partial<Holding> = {}): Holding {
+  return {
+    market: "KRX",
+    symbol: "005930",
+    productName: "삼성전자",
+    currency: "KRW",
+    quantity: 10,
+    avgPrice: 70000,
+    purchaseAmount: 700000,
+    currentPrice: 75000,
+    evalAmount: 750000,
+    evalPflsAmount: 50000,
+    evalPflsRate: 7.14,
+    ...overrides,
+  };
+}
+
+function point(overrides: Partial<SnapshotPoint> & { date: string }): SnapshotPoint {
+  return {
+    totalEvalAmount: null,
+    netAssetAmount: null,
+    evalPflsAmount: null,
+    depositTotal: null,
+    ...overrides,
+  };
+}
+
+function trade(overrides: Partial<Trade> = {}): Trade {
+  return {
+    date: "2026-09-24",
+    market: "KRX",
+    symbol: "005930",
+    productName: "삼성전자",
+    side: "BUY",
+    quantity: 10,
+    avgPrice: 70000,
+    amount: 700000,
+    currency: "KRW",
+    orderTime: "09:01:00",
+    ...overrides,
+  };
+}
+
+function detail(
+  overrides: { history?: SnapshotPoint[]; holdings?: Holding[]; trades?: Trade[]; alias?: string | null } = {},
+) {
+  return {
+    account: {
+      id: 3,
+      provider: "kis",
+      name: "Main",
+      alias: overrides.alias ?? null,
+      country: "KR",
+      currency: "KRW",
+      snapshotDate: "2026-09-24",
+    },
+    summary: null,
+    holdings: overrides.holdings ?? [],
+    history: overrides.history ?? [],
+    trades: overrides.trades ?? [],
+    fx: null,
+  };
+}
+
+describe("history section", () => {
+  it("renders a net-asset chart with the table collapsed", () => {
+    const page = accountPage(
+      detail({
+        history: [
+          point({ date: "2026-09-24", netAssetAmount: 200 }),
+          point({ date: "2026-09-23", netAssetAmount: 100 }),
+          point({ date: "2026-09-22", netAssetAmount: 150 }),
+        ],
+      }),
+    ).value;
+
+    expect(page).toContain('<svg class="spark"');
+    expect(page).toContain('<polyline class="line"');
+    expect(page).toContain('<polygon class="area"');
+    expect(page).toContain("최고");
+    expect(page).toContain("최저");
+    expect(page).toContain("<details>");
+    expect(page).toContain("표로 보기");
+    expect(page).not.toContain("<details open");
+    expect(page).not.toContain("NaN");
+
+    const chart = page.slice(page.indexOf('<figure class="chart"'), page.indexOf("<details>"));
+    expect(chart.indexOf("2026-09-22")).toBeGreaterThan(-1);
+    expect(chart.indexOf("2026-09-22")).toBeLessThan(chart.indexOf("2026-09-24"));
+  });
+
+  it("handles a single snapshot without producing NaN", () => {
+    const page = accountPage(detail({ history: [point({ date: "2026-09-24", netAssetAmount: 100 })] })).value;
+    expect(page).toContain('<polyline class="line"');
+    expect(page).not.toContain("NaN");
+  });
+
+  it("shows a message when there is no history", () => {
+    const page = accountPage(detail({ history: [] })).value;
+    expect(page).toContain("스냅샷 이력이 없습니다.");
+    expect(page).not.toContain('<svg class="spark"');
+  });
+
+  it("falls back to the table when no net asset values exist", () => {
+    const page = accountPage(detail({ history: [point({ date: "2026-09-24", netAssetAmount: null })] })).value;
+    expect(page).not.toContain('<svg class="spark"');
+    expect(page).toContain("표로 보기");
+  });
+});
+
+describe("accountsPage", () => {
+  it("renders account rows as real table markup", () => {
+    const page = accountsPage(
+      [
+        summary({
+          id: 3,
+          name: "KIS 10092224-22",
+          totalEvalAmount: 1821495,
+          netAssetAmount: 2585985,
+          evalPflsAmount: 26356,
+          purchaseAmountTotal: 25599146,
+          securitiesEvalAmount: 25572790,
+          holdingCount: 7,
+        }),
+      ],
+      fx,
+    ).value;
+
+    expect(page).toContain('<td class="row-title" data-label="계좌"><a href="/accounts/3">KIS 10092224-22</a>');
+    expect(page).not.toContain("&lt;td");
+    expect(page).toContain("USD/KRW");
+  });
+
+  it("escapes untrusted account names", () => {
+    const page = accountsPage([summary({ id: 1, name: '<script>alert("x")</script>' })], null).value;
+    expect(page).not.toContain("<script>");
+    expect(page).toContain("&lt;script&gt;");
+  });
+
+  it("separates investing, cash, and empty accounts", () => {
+    const page = accountsPage(
+      [
+        summary({ id: 1, netAssetAmount: 0 }),
+        summary({ id: 2, netAssetAmount: 5000 }),
+        summary({ id: 3, netAssetAmount: 5000, holdingCount: 2 }),
+      ],
+      null,
+    ).value;
+
+    const investing = page.indexOf("투자 중");
+    const cash = page.indexOf("잔고 계좌");
+    const empty = page.indexOf("빈 계좌");
+    expect(investing).toBeGreaterThan(-1);
+    expect(cash).toBeGreaterThan(investing);
+    expect(empty).toBeGreaterThan(cash);
+
+    expect(page).toContain("<details>");
+    expect(page).not.toContain("<details open");
+
+    // The empty account lives inside the collapsed details block.
+    const detailsBlock = page.slice(page.indexOf("<details>"));
+    expect(detailsBlock).toContain('href="/accounts/1"');
+    expect(page.slice(page.indexOf("<details>")).includes('href="/accounts/3"')).toBe(false);
+  });
+
+  it("sorts investing accounts by net asset (fx converted)", () => {
+    const page = accountsPage(
+      [
+        summary({ id: 10, name: "KRW account", currency: "KRW", netAssetAmount: 1_000_000, holdingCount: 1 }),
+        summary({ id: 11, name: "USD account", currency: "USD", netAssetAmount: 1000, holdingCount: 1 }),
+      ],
+      fx,
+    ).value;
+
+    expect(page.indexOf("USD account")).toBeLessThan(page.indexOf("KRW account"));
+  });
+
+  it("renders account detail tables with responsive labels", () => {
+    const page = accountPage({
+      account: { id: 3, provider: "kis", name: "Main", alias: null, country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      summary: null,
+      holdings: [holding({ evalAmount: 750000 })],
+      history: [{ date: "2026-09-24", totalEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000 }],
+      trades: [],
+      fx: null,
+    }).value;
+
+    expect(page).toContain("삼성전자");
+    expect(page).toContain('<table class="responsive">');
+    expect(page).toContain('data-label="평가금액"');
+    expect(page).not.toContain("&lt;tr");
+  });
+
+  it("renders a composition bar and per-holding allocation for weights", () => {
+    const page = accountPage({
+      account: { id: 3, provider: "kis", name: "Main", alias: null, country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      summary: null,
+      holdings: [
+        holding({ symbol: "005930", productName: "삼성전자", evalAmount: 750000 }),
+        holding({ symbol: "000660", productName: "SK하이닉스", evalAmount: 250000 }),
+      ],
+      history: [],
+      trades: [],
+      fx: null,
+    }).value;
+
+    expect(page).toContain('<div class="composition">');
+    expect(page).toContain('class="fill c0 w75"');
+    expect(page).toContain('class="fill c1 w25"');
+    expect(page).toContain('class="dot c0"');
+    expect(page).toContain('class="dot c1"');
+    expect(page).toContain('<div class="alloc">');
+    expect(page).toContain('class="pct">75%');
+  });
+
+  it("omits allocation visuals when there is no evaluated total", () => {
+    const page = accountPage({
+      account: { id: 3, provider: "kis", name: "Main", alias: null, country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      summary: null,
+      holdings: [holding({ evalAmount: null })],
+      history: [],
+      trades: [],
+      fx: null,
+    }).value;
+
+    expect(page).not.toContain('class="composition"');
+    expect(page).not.toContain('class="alloc"');
+  });
+
+  it("prefers the alias and shows the name in small text", () => {
+    const page = accountsPage([summary({ id: 3, alias: "퇴직연금", name: "KIS 10092224-22" })], null).value;
+    expect(page).toContain('퇴직연금 <span class="muted label-sub">(KIS 10092224-22)</span>');
+  });
+
+  it("shows the name when there is no alias", () => {
+    const page = accountsPage([summary({ id: 3, alias: null, name: "KIS 10092224-22" })], null).value;
+    expect(page).toContain('<a href="/accounts/3">KIS 10092224-22</a>');
+    expect(page).not.toContain("label-sub");
+  });
+
+  it("uses the alias in the account detail heading and title", () => {
+    const page = accountPage(detail({ alias: "퇴직연금" })).value;
+    expect(page).toContain('퇴직연금 <span class="muted label-sub">(Main)</span>');
+    expect(page).toContain("<title>퇴직연금 · Asset Tracker</title>");
+  });
+
+  it("renders trades as a scrollable table, not cards", () => {
+    const page = accountPage(
+      detail({
+        trades: [
+          trade(),
+          trade({ symbol: "000660", productName: "SK하이닉스", side: "SELL" }),
+        ],
+      }),
+    ).value;
+
+    expect(page).toContain('<div class="table-scroll">');
+    const trades = page.slice(page.indexOf("최근 거래"));
+    expect(trades).toContain("<table>");
+    expect(trades).not.toContain('<table class="responsive">');
+  });
+
+  it("renders auth and error pages", () => {
+    expect(loginPage().value).toContain('id="login-button"');
+    expect(registerPage({ setupTokenRequired: true }).value).toContain('id="setup-token"');
+    expect(registerPage({ setupTokenRequired: false }).value).not.toContain('id="setup-token"');
+    expect(notFoundPage().value).toContain("404");
+  });
+});
