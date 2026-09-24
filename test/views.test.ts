@@ -306,6 +306,12 @@ describe("accountsPage", () => {
     expect(page).toContain("표로 보기");
     expect(page).not.toContain("<details open");
     expect(page).not.toContain("NaN");
+    expect(page).toContain("+₩19 (+1.48%)");
+  });
+
+  it("shows no change for the oldest fx row", () => {
+    const page = fxPage("USD", "KRW", [{ base: "USD", quote: "KRW", date: "2026-09-24", rate: 1299 }]).value;
+    expect(page).toContain('data-label="변동">-</td>');
   });
 
   it("shows a message when there is no fx history", () => {

@@ -314,14 +314,19 @@ ${tradesTable(trades, account.currency)}`;
 
 function fxTable(rates: FxRate[]): SafeHtml {
   if (rates.length === 0) return html`<p class="muted">환율 이력이 없습니다.</p>`;
-  const rows = rates.map(
-    (rate) => html`<tr>
+  const rows = rates.map((rate, index) => {
+    const previous = rates[index + 1];
+    const change = previous ? rate.rate - previous.rate : null;
+    const pct = previous && previous.rate !== 0 ? ((rate.rate - previous.rate) / previous.rate) * 100 : null;
+    const changeText = change == null ? "-" : `${formatSignedMoney(change, "KRW")} (${formatPercent(pct)})`;
+    return html`<tr>
   <td class="row-title" data-label="기준일">${formatDate(rate.date)}</td>
   <td class="num" data-label="환율">${formatMoney(rate.rate, "KRW")}</td>
-</tr>`,
-  );
+  <td class="num ${pnlClass(change)}" data-label="변동">${changeText}</td>
+</tr>`;
+  });
   return html`<table class="responsive">
-  <thead><tr><th>기준일</th><th>환율</th></tr></thead>
+  <thead><tr><th>기준일</th><th>환율</th><th>변동</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>`;
 }
