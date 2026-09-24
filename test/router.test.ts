@@ -23,6 +23,7 @@ describe("router", () => {
     expect(response.headers.get("content-type")).toContain("text/css");
     expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
     expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(await response.text()).toContain("transform: translateX(-50%)");
   });
 
   it("serves the client script", async () => {

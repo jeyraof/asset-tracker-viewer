@@ -274,6 +274,7 @@ function trendChart(
       <polygon class="area" points="${areaPoints(coords)}"></polygon>
       <polyline class="line" points="${linePoints(coords)}"></polyline>
     </svg>
+    ${data.length === 1 ? html`<span class="single-point"></span><span class="single-point-label">${options.formatValue(data[0]?.value ?? 0)}</span>` : html``}
     <div class="cursor" hidden><span class="cursor-line"></span><span class="cursor-dot"></span></div>
     <div class="chart-tip" hidden>
       <div class="tip-time"></div>

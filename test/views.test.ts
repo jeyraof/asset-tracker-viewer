@@ -159,6 +159,21 @@ describe("history section", () => {
     const page = accountPage(detail({ history: [point({ date: "2026-09-24", netAssetAmount: 100 })] })).value;
     expect(page).toContain('<polyline class="line"');
     expect(page).not.toContain("NaN");
+    expect(page).toContain('class="single-point"');
+    expect(page).toContain('class="single-point-label"');
+    expect(page).toContain("₩100");
+  });
+
+  it("omits the single-point marker for multi-point charts", () => {
+    const page = accountPage(
+      detail({
+        history: [
+          point({ date: "2026-09-24", netAssetAmount: 200 }),
+          point({ date: "2026-09-23", netAssetAmount: 100 }),
+        ],
+      }),
+    ).value;
+    expect(page).not.toContain("single-point");
   });
 
   it("shows a message when there is no history", () => {
