@@ -5,7 +5,7 @@ const WIDTH_CLASSES = Array.from({ length: 101 }, (_, i) => `.w${i}{width:${i}%}
 const COLOR_CLASSES = PALETTE.map((color, i) => `.c${i}{background-color:${color}}`).join("");
 
 export const STYLES = `:root {
-  color-scheme: light dark;
+  color-scheme: light;
   --fg: #1a1a1a;
   --muted: #6b7280;
   --border: #e5e7eb;
@@ -14,18 +14,6 @@ export const STYLES = `:root {
   --down: #1d4ed8;
   --accent: #2563eb;
   --accent-soft: rgba(37, 99, 235, 0.15);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #e5e7eb;
-    --muted: #9ca3af;
-    --border: #374151;
-    --bg: #111827;
-    --up: #f87171;
-    --down: #60a5fa;
-    --accent: #60a5fa;
-    --accent-soft: rgba(96, 165, 250, 0.2);
-  }
 }
 * { box-sizing: border-box; }
 body {
