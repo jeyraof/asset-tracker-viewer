@@ -1,6 +1,6 @@
 {
-  // Copy to wrangler.jsonc and fill in the D1 database ids + your workers.dev
-  // subdomain. `pnpm wrangler d1 list` prints the ids.
+  // Copy to wrangler.jsonc and fill in the D1 database ids and your custom
+  // domain. `pnpm wrangler d1 list` prints the ids.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "asset-tracker-viewer",
   "main": "src/index.ts",
@@ -14,6 +14,10 @@
       "head_sampling_rate": 1
     }
   },
+  // Serve only on the custom domain; disable workers.dev and preview URLs.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "asset.<domain>", "custom_domain": true }],
   "d1_databases": [
     {
       // Existing asset database. Queried read-only; never written to.
@@ -31,9 +35,9 @@
   ],
   "vars": {
     "RP_NAME": "Asset Tracker",
-    // Comma-separated. Append the custom domain later; registered passkeys are
-    // stored per rp_id, and a new rp_id needs a fresh passkey registration.
-    "RP_IDS": "asset-tracker-viewer.<subdomain>.workers.dev",
-    "ORIGINS": "https://asset-tracker-viewer.<subdomain>.workers.dev"
+    // Comma-separated WebAuthn RP IDs / origins. A passkey is bound to the RP ID
+    // it was created under; adding a domain later needs a fresh registration.
+    "RP_IDS": "asset.<domain>",
+    "ORIGINS": "https://asset.<domain>"
   }
 }
