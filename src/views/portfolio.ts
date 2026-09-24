@@ -8,23 +8,27 @@ import type {
 } from "../db/portfolio";
 import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuantity, formatSignedMoney, pnlClass } from "../lib/format";
 import { html, type SafeHtml } from "../lib/html";
+import { countryFlag, providerName } from "../lib/labels";
 import { layout } from "./layout";
 
 function accountTitle(account: {
   alias: string | null;
   name: string | null;
+  externalId: string;
   provider: string;
 }): { primary: string; parenthetical: string | null } {
   const alias = account.alias?.trim();
   const name = account.name?.trim();
-  if (alias) return { primary: alias, parenthetical: name ? name : null };
-  return { primary: name ? name : account.provider, parenthetical: null };
+  const externalId = account.externalId?.trim();
+  if (alias) return { primary: alias, parenthetical: externalId ? externalId : null };
+  return { primary: name ? name : providerName(account.provider), parenthetical: null };
 }
 
-/** Primary label is the alias when set, with the original name shown in small text. */
+/** Primary label is the alias when set, with the account id shown in small text. */
 function accountLabel(account: {
   alias: string | null;
   name: string | null;
+  externalId: string;
   provider: string;
 }): SafeHtml {
   const { primary, parenthetical } = accountTitle(account);
@@ -46,7 +50,7 @@ function byNetDesc(fx: FxRate | null) {
 function accountsTable(accounts: AccountSummary[], fx: FxRate | null): SafeHtml {
   const rows = accounts.map(
     (account) => html`<tr>
-  <td class="row-title" data-label="계좌"><a href="/accounts/${account.id}">${accountLabel(account)}</a><div class="muted">${account.provider} · ${account.country}</div></td>
+  <td class="row-title" data-label="계좌"><a href="/accounts/${account.id}">${accountLabel(account)}</a><div class="muted"><span title="${account.provider}">${providerName(account.provider)}</span> · ${countryFlag(account.country)}</div></td>
   <td class="num" data-label="기준일">${formatDate(account.snapshotDate)}</td>
   <td class="num" data-label="순자산">${formatMoney(account.netAssetAmount, account.currency)}</td>
   <td class="num" data-label="평가금액">${formatMoney(account.totalEvalAmount, account.currency)}</td>
@@ -300,7 +304,7 @@ export interface AccountDetail {
 export function accountPage(detail: AccountDetail): SafeHtml {
   const { account, summary, holdings, history, trades, fx } = detail;
   const body = html`<p><a class="back" href="/">← 계좌 목록</a></p>
-<h2>${accountLabel(account)} <span class="muted">${account.provider} · ${account.country} · ${account.currency}</span></h2>
+<h2>${accountLabel(account)} <span class="muted"><span title="${account.provider}">${providerName(account.provider)}</span> · ${countryFlag(account.country)} · ${account.currency}</span></h2>
 ${summaryList(account, summary, fx)}
 <h2>보유 종목</h2>
 ${holdingsTable(holdings)}

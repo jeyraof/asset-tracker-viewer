@@ -9,6 +9,7 @@ function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSu
     provider: "kis",
     name: `account-${overrides.id}`,
     alias: null,
+    externalId: "00000000-01",
     country: "KR",
     currency: "KRW",
     snapshotDate: "2026-09-24",
@@ -77,6 +78,7 @@ function detail(
       provider: "kis",
       name: "Main",
       alias: overrides.alias ?? null,
+      externalId: "00000000-01",
       country: "KR",
       currency: "KRW",
       snapshotDate: "2026-09-24",
@@ -154,6 +156,7 @@ describe("accountsPage", () => {
     ).value;
 
     expect(page).toContain('<td class="row-title" data-label="계좌"><a href="/accounts/3">KIS 10092224-22</a>');
+    expect(page).toContain('<span title="kis">한국투자증권</span> · 🇰🇷');
     expect(page).not.toContain("&lt;td");
     expect(page).toContain("USD/KRW");
   });
@@ -204,7 +207,7 @@ describe("accountsPage", () => {
 
   it("renders account detail tables with responsive labels", () => {
     const page = accountPage({
-      account: { id: 3, provider: "kis", name: "Main", alias: null, country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [holding({ evalAmount: 750000 })],
       history: [{ date: "2026-09-24", totalEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000 }],
@@ -220,7 +223,7 @@ describe("accountsPage", () => {
 
   it("renders a composition bar and per-holding allocation for weights", () => {
     const page = accountPage({
-      account: { id: 3, provider: "kis", name: "Main", alias: null, country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [
         holding({ symbol: "005930", productName: "삼성전자", evalAmount: 750000 }),
@@ -242,7 +245,7 @@ describe("accountsPage", () => {
 
   it("omits allocation visuals when there is no evaluated total", () => {
     const page = accountPage({
-      account: { id: 3, provider: "kis", name: "Main", alias: null, country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [holding({ evalAmount: null })],
       history: [],
@@ -254,9 +257,9 @@ describe("accountsPage", () => {
     expect(page).not.toContain('class="alloc"');
   });
 
-  it("prefers the alias and shows the name in small text", () => {
+  it("prefers the alias and shows the account id in small text", () => {
     const page = accountsPage([summary({ id: 3, alias: "퇴직연금", name: "KIS 10092224-22" })], null).value;
-    expect(page).toContain('퇴직연금 <span class="muted label-sub">(KIS 10092224-22)</span>');
+    expect(page).toContain('퇴직연금 <span class="muted label-sub">(00000000-01)</span>');
   });
 
   it("shows the name when there is no alias", () => {
@@ -267,7 +270,7 @@ describe("accountsPage", () => {
 
   it("uses the alias in the account detail heading and title", () => {
     const page = accountPage(detail({ alias: "퇴직연금" })).value;
-    expect(page).toContain('퇴직연금 <span class="muted label-sub">(Main)</span>');
+    expect(page).toContain('퇴직연금 <span class="muted label-sub">(00000000-01)</span>');
     expect(page).toContain("<title>퇴직연금 · Asset Tracker</title>");
   });
 
