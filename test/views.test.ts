@@ -13,12 +13,11 @@ function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSu
     country: "KR",
     currency: "KRW",
     snapshotDate: "2026-09-24",
-    totalEvalAmount: 0,
     netAssetAmount: 0,
     evalPflsAmount: 0,
     depositTotal: 0,
     purchaseAmountTotal: 0,
-    securitiesEvalAmount: 0,
+    securitiesEvalAmount: overrides.securitiesEvalAmount ?? overrides.netAssetAmount ?? 0,
     holdingCount: 0,
     ...overrides,
   };
@@ -45,10 +44,10 @@ function holding(overrides: Partial<Holding> = {}): Holding {
 
 function point(overrides: Partial<SnapshotPoint> & { date: string }): SnapshotPoint {
   return {
-    totalEvalAmount: null,
     netAssetAmount: null,
     evalPflsAmount: null,
     depositTotal: null,
+    securitiesEvalAmount: overrides.securitiesEvalAmount ?? overrides.netAssetAmount ?? null,
     ...overrides,
   };
 }
@@ -176,7 +175,6 @@ describe("accountsPage", () => {
         summary({
           id: 3,
           name: "KIS 10092224-22",
-          totalEvalAmount: 1821495,
           netAssetAmount: 2585985,
           evalPflsAmount: 26356,
           purchaseAmountTotal: 25599146,
@@ -249,6 +247,17 @@ describe("accountsPage", () => {
     expect(page).not.toContain("<tfoot>");
   });
 
+  it("shows net asset as eval plus deposit, and eval without cash", () => {
+    const page = accountsPage(
+      [summary({ id: 3, securitiesEvalAmount: 1000, depositTotal: 200, netAssetAmount: 999999, holdingCount: 1 })],
+      null,
+    ).value;
+
+    expect(page).toContain("₩1,200");
+    expect(page).toContain("₩1,000");
+    expect(page).toContain("₩200");
+  });
+
   it("sorts investing accounts by net asset (fx converted)", () => {
     const page = accountsPage(
       [
@@ -266,7 +275,7 @@ describe("accountsPage", () => {
       account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [holding({ evalAmount: 750000 })],
-      history: [{ date: "2026-09-24", totalEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000 }],
+      history: [{ date: "2026-09-24", securitiesEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000 }],
       trades: [],
       fx: null,
     }).value;
@@ -392,7 +401,6 @@ describe("accountsPage", () => {
           name: "Kiwoom US",
           currency: "USD",
           netAssetAmount: 1000,
-          totalEvalAmount: 1000,
           evalPflsAmount: 50,
           depositTotal: null,
           holdingCount: 1,
@@ -429,7 +437,7 @@ describe("accountsPage", () => {
         currency: "USD",
         snapshotDate: "2026-09-23",
       },
-      summary: summary({ id: 27, currency: "USD", netAssetAmount: 1000, totalEvalAmount: 1000 }),
+      summary: summary({ id: 27, currency: "USD", netAssetAmount: 1000 }),
       holdings: [],
       history: [],
       trades: [],

@@ -7,7 +7,6 @@ export interface AccountSummary {
   country: string;
   currency: string;
   snapshotDate: string | null;
-  totalEvalAmount: number | null;
   netAssetAmount: number | null;
   evalPflsAmount: number | null;
   depositTotal: number | null;
@@ -26,7 +25,6 @@ interface AccountSummaryRow {
   country: string;
   currency: string;
   snapshot_date: string | null;
-  total_eval_amount: number | null;
   net_asset_amount: number | null;
   eval_pfls_amount: number | null;
   deposit_total: number | null;
@@ -76,7 +74,7 @@ interface HoldingRow {
 
 export interface SnapshotPoint {
   date: string;
-  totalEvalAmount: number | null;
+  securitiesEvalAmount: number | null;
   netAssetAmount: number | null;
   evalPflsAmount: number | null;
   depositTotal: number | null;
@@ -84,7 +82,7 @@ export interface SnapshotPoint {
 
 interface SnapshotRow {
   snapshot_date: string;
-  total_eval_amount: number | null;
+  securities_eval_amount: number | null;
   net_asset_amount: number | null;
   eval_pfls_amount: number | null;
   deposit_total: number | null;
@@ -133,7 +131,6 @@ function mapSummaryRow(row: AccountSummaryRow): AccountSummary {
     country: row.country,
     currency: row.currency,
     snapshotDate: row.snapshot_date,
-    totalEvalAmount: row.total_eval_amount,
     netAssetAmount: row.net_asset_amount,
     evalPflsAmount: row.eval_pfls_amount,
     depositTotal: row.deposit_total,
@@ -144,7 +141,7 @@ function mapSummaryRow(row: AccountSummaryRow): AccountSummary {
 }
 
 const SUMMARY_SELECT = `SELECT a.id, a.provider, a.name, a.alias, a.external_id, a.country, a.currency,
-         s.snapshot_date, s.total_eval_amount, s.net_asset_amount,
+         s.snapshot_date, s.net_asset_amount,
          s.eval_pfls_amount, s.deposit_total, s.purchase_amount_total,
          s.securities_eval_amount,
          (SELECT COUNT(*) FROM holdings h
@@ -236,7 +233,7 @@ export function listSnapshotHistory(
 ): Promise<SnapshotPoint[]> {
   return db
     .prepare(
-      `SELECT snapshot_date, total_eval_amount, net_asset_amount, eval_pfls_amount, deposit_total
+      `SELECT snapshot_date, securities_eval_amount, net_asset_amount, eval_pfls_amount, deposit_total
          FROM account_snapshots
         WHERE account_id = ?
         ORDER BY snapshot_date DESC
@@ -247,7 +244,7 @@ export function listSnapshotHistory(
     .then(({ results }) =>
       (results ?? []).map((row) => ({
         date: row.snapshot_date,
-        totalEvalAmount: row.total_eval_amount,
+        securitiesEvalAmount: row.securities_eval_amount,
         netAssetAmount: row.net_asset_amount,
         evalPflsAmount: row.eval_pfls_amount,
         depositTotal: row.deposit_total,

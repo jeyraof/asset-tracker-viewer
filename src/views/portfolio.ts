@@ -8,6 +8,7 @@ import type {
 } from "../db/portfolio";
 import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuantity, formatSignedMoney, pnlClass } from "../lib/format";
 import { html, type SafeHtml } from "../lib/html";
+import { evalAmount, netAsset } from "../lib/amounts";
 import { areaPoints, linePoints, plotCoords, serializeChartPoints } from "../lib/chartData";
 import { countryFlag, providerName } from "../lib/labels";
 import { layout } from "./layout";
@@ -46,7 +47,7 @@ function krwAmount(value: number | null | undefined, currency: string, fx: FxRat
 }
 
 function krwNetValue(summary: AccountSummary, fx: FxRate | null): number {
-  return krwAmount(summary.netAssetAmount, summary.currency, fx);
+  return krwAmount(netAsset(summary), summary.currency, fx);
 }
 
 /**
@@ -75,8 +76,8 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal 
     (account) => html`<tr>
   <td class="row-title" data-label="계좌"><a href="/accounts/${account.id}">${accountLabel(account)}</a><div class="muted"><span title="${account.provider}">${providerName(account.provider)}</span> · ${countryFlag(account.country)}</div></td>
   <td class="num" data-label="기준일">${formatDate(account.snapshotDate)}</td>
-  <td class="num" data-label="순자산">${moneyCell(account.netAssetAmount, account.currency, fx)}</td>
-  <td class="num" data-label="평가금액">${moneyCell(account.totalEvalAmount, account.currency, fx)}</td>
+  <td class="num" data-label="순자산">${moneyCell(netAsset(account), account.currency, fx)}</td>
+  <td class="num" data-label="평가금액">${moneyCell(evalAmount(account), account.currency, fx)}</td>
   <td class="num ${pnlClass(account.evalPflsAmount)}" data-label="평가손익">${moneyCell(account.evalPflsAmount, account.currency, fx, true)}</td>
   <td class="num" data-label="예수금">${moneyCell(account.depositTotal, account.currency, fx)}</td>
 </tr>`,
@@ -86,7 +87,7 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal 
   const total =
     showTotal && canTotal
       ? {
-          netAsset: accounts.reduce((sum, account) => sum + krwAmount(account.netAssetAmount, account.currency, fx), 0),
+          netAsset: accounts.reduce((sum, account) => sum + krwAmount(netAsset(account), account.currency, fx), 0),
           evalPfls: accounts.reduce((sum, account) => sum + krwAmount(account.evalPflsAmount, account.currency, fx), 0),
         }
       : null;
@@ -154,8 +155,8 @@ function summaryList(account: Account, summary: AccountSummary | null, fx: FxRat
   return html`<div class="card">
   <dl>
     <dt>기준일</dt><dd>${formatDate(account.snapshotDate)}</dd>
-    <dt>순자산</dt><dd>${moneyCell(summary?.netAssetAmount, currency, fx)}</dd>
-    <dt>평가금액</dt><dd>${moneyCell(summary?.totalEvalAmount, currency, fx)}</dd>
+    <dt>순자산</dt><dd>${moneyCell(summary ? netAsset(summary) : null, currency, fx)}</dd>
+    <dt>평가금액</dt><dd>${moneyCell(summary ? evalAmount(summary) : null, currency, fx)}</dd>
     <dt>평가손익</dt><dd class="${pnlClass(summary?.evalPflsAmount)}">${moneyCell(summary?.evalPflsAmount, currency, fx, true)}</dd>
     <dt>매입금액</dt><dd>${moneyCell(summary?.purchaseAmountTotal, currency, fx)}</dd>
     <dt>예수금</dt><dd>${moneyCell(summary?.depositTotal, currency, fx)}</dd>
@@ -222,8 +223,8 @@ function historyTable(points: SnapshotPoint[], currency: string): SafeHtml {
   const rows = points.map(
     (point) => html`<tr>
   <td class="row-title" data-label="기준일">${formatDate(point.date)}</td>
-  <td class="num" data-label="순자산">${formatMoney(point.netAssetAmount, currency)}</td>
-  <td class="num" data-label="평가금액">${formatMoney(point.totalEvalAmount, currency)}</td>
+  <td class="num" data-label="순자산">${formatMoney(netAsset(point), currency)}</td>
+  <td class="num" data-label="평가금액">${formatMoney(evalAmount(point), currency)}</td>
   <td class="num ${pnlClass(point.evalPflsAmount)}" data-label="평가손익">${formatSignedMoney(point.evalPflsAmount, currency)}</td>
   <td class="num" data-label="예수금">${formatMoney(point.depositTotal, currency)}</td>
 </tr>`,
@@ -291,14 +292,12 @@ function trendChart(
 
 function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
   const data = points
-    .filter((point): point is SnapshotPoint & { netAssetAmount: number } =>
-      point.netAssetAmount != null && Number.isFinite(point.netAssetAmount),
-    )
     .map((point) => ({
       date: point.date,
-      value: point.netAssetAmount,
+      value: netAsset(point),
       sub: point.evalPflsAmount != null ? `평가손익 ${formatSignedMoney(point.evalPflsAmount, currency)}` : null,
     }))
+    .filter((point): point is TrendPoint & { value: number } => point.value != null && Number.isFinite(point.value))
     .reverse();
   return trendChart(data, {
     ariaLabel: "순자산 추이",
