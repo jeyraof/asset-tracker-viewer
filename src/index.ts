@@ -6,15 +6,15 @@ import type {
 import { CLIENT_JS, STYLES } from "./assets";
 import { CHALLENGE_COOKIE, clearedCookie, readCookie, SESSION_COOKIE, sessionCookie, signSession, verifySession, type SessionPayload } from "./auth/session";
 import {
-  countCredentials,
+  countCredentialsForRp,
   getCredential,
   insertCredential,
-  listCredentials,
+  listCredentialsForRp,
   putChallenge,
   takeChallenge,
   updateCredentialAfterUse,
 } from "./auth/store";
-import { authenticationOptions, OWNER_UID, registrationOptions, rpConfig, verifyAuthentication, verifyRegistration } from "./auth/webauthn";
+import { authenticationOptions, OWNER_UID, registrationOptions, resolveRpId, rpConfig, verifyAuthentication, verifyRegistration } from "./auth/webauthn";
 import {
   getAccount,
   getAccountSummary,
@@ -106,13 +106,20 @@ function originAllowed(env: Env, request: Request): boolean {
   return rpConfig(env).origins.includes(origin);
 }
 
+/** Resolves the WebAuthn RP ID for the request host, or null when the host is not configured. */
+function requestRpId(env: Env, request: Request): string | null {
+  return resolveRpId(rpConfig(env).rpIDs, new URL(request.url).hostname);
+}
+
 async function handleRegisterOptions(request: Request, env: Env): Promise<Response> {
   if (!originAllowed(env, request)) return jsonResponse({ error: "forbidden" }, 403);
+  const rpID = requestRpId(env, request);
+  if (!rpID) return jsonResponse({ error: "unsupported host" }, 400);
 
   const body = await readJson(request);
   const setupToken = typeof body.setupToken === "string" ? body.setupToken : undefined;
 
-  const count = await countCredentials(env.AUTH_DB);
+  const count = await countCredentialsForRp(env.AUTH_DB, rpID);
   if (count === 0) {
     if (!env.SETUP_TOKEN) return jsonResponse({ error: "setup token not configured" }, 500);
     if (!setupToken || !timingSafeEqualString(setupToken, env.SETUP_TOKEN)) {
@@ -122,7 +129,7 @@ async function handleRegisterOptions(request: Request, env: Env): Promise<Respon
     return jsonResponse({ error: "unauthorized" }, 401);
   }
 
-  const options = await registrationOptions(env, await listCredentials(env.AUTH_DB));
+  const options = await registrationOptions(env, rpID, await listCredentialsForRp(env.AUTH_DB, rpID));
   const challengeId = crypto.randomUUID();
   await putChallenge(env.AUTH_DB, challengeId, "registration", options.challenge, CHALLENGE_TTL_SECONDS);
   return jsonResponse(options, 200, { "set-cookie": challengeCookie(challengeId) });
@@ -130,12 +137,14 @@ async function handleRegisterOptions(request: Request, env: Env): Promise<Respon
 
 async function handleRegisterVerify(request: Request, env: Env): Promise<Response> {
   if (!originAllowed(env, request)) return jsonResponse({ error: "forbidden" }, 403);
+  const rpID = requestRpId(env, request);
+  if (!rpID) return jsonResponse({ error: "unsupported host" }, 400);
 
   const body = await readJson(request);
   const response = body.response as RegistrationResponseJSON | undefined;
   if (!response) return jsonResponse({ error: "missing response" }, 400);
 
-  const count = await countCredentials(env.AUTH_DB);
+  const count = await countCredentialsForRp(env.AUTH_DB, rpID);
   if (count > 0 && !(await currentSession(env, request))) {
     return jsonResponse({ error: "unauthorized" }, 401);
   }
@@ -163,7 +172,7 @@ async function handleRegisterVerify(request: Request, env: Env): Promise<Respons
       transports,
       deviceType: info.credentialDeviceType,
       backedUp: info.credentialBackedUp,
-      rpId: info.rpID ?? rpConfig(env).rpID,
+      rpId: info.rpID ?? rpID,
       label,
     });
 
@@ -179,11 +188,13 @@ async function handleRegisterVerify(request: Request, env: Env): Promise<Respons
 
 async function handleLoginOptions(request: Request, env: Env): Promise<Response> {
   if (!originAllowed(env, request)) return jsonResponse({ error: "forbidden" }, 403);
+  const rpID = requestRpId(env, request);
+  if (!rpID) return jsonResponse({ error: "unsupported host" }, 400);
 
-  const credentials = await listCredentials(env.AUTH_DB);
+  const credentials = await listCredentialsForRp(env.AUTH_DB, rpID);
   if (credentials.length === 0) return jsonResponse({ error: "no passkey registered" }, 409);
 
-  const options = await authenticationOptions(env, credentials);
+  const options = await authenticationOptions(env, rpID, credentials);
   const challengeId = crypto.randomUUID();
   await putChallenge(env.AUTH_DB, challengeId, "authentication", options.challenge, CHALLENGE_TTL_SECONDS);
   return jsonResponse(options, 200, { "set-cookie": challengeCookie(challengeId) });
@@ -191,6 +202,8 @@ async function handleLoginOptions(request: Request, env: Env): Promise<Response>
 
 async function handleLoginVerify(request: Request, env: Env): Promise<Response> {
   if (!originAllowed(env, request)) return jsonResponse({ error: "forbidden" }, 403);
+  const rpID = requestRpId(env, request);
+  if (!rpID) return jsonResponse({ error: "unsupported host" }, 400);
 
   const body = await readJson(request);
   const response = body.response as AuthenticationResponseJSON | undefined;
@@ -199,7 +212,9 @@ async function handleLoginVerify(request: Request, env: Env): Promise<Response> 
   }
 
   const credential = await getCredential(env.AUTH_DB, response.id);
-  if (!credential) return jsonResponse({ error: "unknown credential" }, 400);
+  if (!credential || credential.rpId !== rpID) {
+    return jsonResponse({ error: "unknown credential" }, 400);
+  }
 
   const challengeId = readCookie(request, CHALLENGE_COOKIE);
   const expectedChallenge = challengeId
@@ -268,7 +283,9 @@ export default {
       }
 
       if (method === "GET" && pathname === "/register") {
-        const count = await countCredentials(env.AUTH_DB);
+        const rpID = requestRpId(env, request);
+        if (!rpID) return jsonResponse({ error: "unsupported host" }, 400);
+        const count = await countCredentialsForRp(env.AUTH_DB, rpID);
         if (count > 0 && !(await currentSession(env, request))) return redirect("/login");
         return htmlResponse(registerPage({ setupTokenRequired: count === 0 }));
       }

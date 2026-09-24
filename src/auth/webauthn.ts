@@ -19,7 +19,6 @@ export const OWNER_UID = "asset-tracker-owner";
 const OWNER_NAME = "owner";
 
 export interface RpConfig {
-  rpID: string;
   rpIDs: string[];
   origins: string[];
 }
@@ -33,18 +32,31 @@ export function rpConfig(env: Env): RpConfig {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  const rpID = rpIDs[0];
-  if (!rpID || origins.length === 0) {
+  if (rpIDs.length === 0 || origins.length === 0) {
     throw new Error("RP_IDS and ORIGINS must be configured");
   }
-  return { rpID, rpIDs, origins };
+  return { rpIDs, origins };
+}
+
+/**
+ * Picks the configured RP ID for a request host: the longest RP ID that equals
+ * the host or is a registrable suffix of it. Returns null for unknown hosts.
+ */
+export function resolveRpId(rpIDs: readonly string[], host: string): string | null {
+  let match: string | null = null;
+  for (const rpID of rpIDs) {
+    if (host === rpID || host.endsWith(`.${rpID}`)) {
+      if (!match || rpID.length > match.length) match = rpID;
+    }
+  }
+  return match;
 }
 
 export function registrationOptions(
   env: Env,
+  rpID: string,
   existing: readonly StoredCredential[],
 ): Promise<PublicKeyCredentialCreationOptionsJSON> {
-  const { rpID } = rpConfig(env);
   return generateRegistrationOptions({
     rpName: env.RP_NAME || "Asset Tracker",
     rpID,
@@ -62,9 +74,9 @@ export function registrationOptions(
 
 export function authenticationOptions(
   env: Env,
+  rpID: string,
   credentials: readonly StoredCredential[],
 ): Promise<PublicKeyCredentialRequestOptionsJSON> {
-  const { rpID } = rpConfig(env);
   return generateAuthenticationOptions({
     rpID,
     allowCredentials: credentials.map((credential) => ({

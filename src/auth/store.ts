@@ -48,19 +48,24 @@ function mapCredential(row: CredentialRow): StoredCredential {
   };
 }
 
-export async function listCredentials(db: D1Database): Promise<StoredCredential[]> {
+export async function listCredentialsForRp(
+  db: D1Database,
+  rpId: string,
+): Promise<StoredCredential[]> {
   const { results } = await db
     .prepare(
       `SELECT id, public_key, counter, transports, device_type, backed_up, rp_id, label
-         FROM passkey_credentials ORDER BY created_at ASC`,
+         FROM passkey_credentials WHERE rp_id = ? ORDER BY created_at ASC`,
     )
+    .bind(rpId)
     .all<CredentialRow>();
   return (results ?? []).map(mapCredential);
 }
 
-export async function countCredentials(db: D1Database): Promise<number> {
+export async function countCredentialsForRp(db: D1Database, rpId: string): Promise<number> {
   const row = await db
-    .prepare("SELECT COUNT(*) AS count FROM passkey_credentials")
+    .prepare("SELECT COUNT(*) AS count FROM passkey_credentials WHERE rp_id = ?")
+    .bind(rpId)
     .first<{ count: number }>();
   return row?.count ?? 0;
 }
