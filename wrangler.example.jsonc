@@ -1,0 +1,39 @@
+{
+  // Copy to wrangler.jsonc and fill in the D1 database ids + your workers.dev
+  // subdomain. `pnpm wrangler d1 list` prints the ids.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "asset-tracker-viewer",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1
+    }
+  },
+  "d1_databases": [
+    {
+      // Existing asset database. Queried read-only; never written to.
+      "binding": "DB",
+      "database_name": "asset-tracker-db",
+      "database_id": "<asset-tracker-db-uuid>"
+    },
+    {
+      // Viewer-owned auth database (passkeys + challenges).
+      "binding": "AUTH_DB",
+      "database_name": "asset-tracker-auth",
+      "database_id": "<asset-tracker-auth-uuid>",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "RP_NAME": "Asset Tracker",
+    // Comma-separated. Append the custom domain later; registered passkeys are
+    // stored per rp_id, and a new rp_id needs a fresh passkey registration.
+    "RP_IDS": "asset-tracker-viewer.<subdomain>.workers.dev",
+    "ORIGINS": "https://asset-tracker-viewer.<subdomain>.workers.dev"
+  }
+}

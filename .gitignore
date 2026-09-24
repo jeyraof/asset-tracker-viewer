@@ -1,0 +1,14 @@
+node_modules/
+.wrangler/
+dist/
+.dev.vars
+.env*
+*.log
+*.pem
+.DS_Store
+
+# Holds account-specific D1 ids; see wrangler.example.jsonc
+wrangler.jsonc
+
+# One-time bootstrap token for the first passkey registration
+.setup-token
