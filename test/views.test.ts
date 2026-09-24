@@ -323,6 +323,63 @@ describe("accountsPage", () => {
     expect(page).not.toContain('<svg class="spark"');
   });
 
+  it("shows usd amounts converted to krw with the original below", () => {
+    const page = accountsPage(
+      [
+        summary({
+          id: 27,
+          name: "Kiwoom US",
+          currency: "USD",
+          netAssetAmount: 1000,
+          totalEvalAmount: 1000,
+          evalPflsAmount: 50,
+          depositTotal: null,
+          holdingCount: 1,
+        }),
+      ],
+      fx,
+    ).value;
+
+    expect(page).toContain("₩1,300,000");
+    expect(page).toContain("US$1,000.00");
+    expect(page).toContain("+₩65,000");
+    expect(page).toContain("+US$50.00");
+  });
+
+  it("keeps the original currency when there is no fx rate", () => {
+    const page = accountsPage(
+      [summary({ id: 27, currency: "USD", netAssetAmount: 1000, holdingCount: 1 })],
+      null,
+    ).value;
+
+    expect(page).toContain("US$1,000.00");
+    expect(page).not.toContain("₩1,300,000");
+  });
+
+  it("converts summary card amounts inline without a separate won row", () => {
+    const page = accountPage({
+      account: {
+        id: 27,
+        provider: "kiwoom",
+        name: "US",
+        alias: null,
+        externalId: "00000000-01",
+        country: "US",
+        currency: "USD",
+        snapshotDate: "2026-09-23",
+      },
+      summary: summary({ id: 27, currency: "USD", netAssetAmount: 1000, totalEvalAmount: 1000 }),
+      holdings: [],
+      history: [],
+      trades: [],
+      fx,
+    }).value;
+
+    expect(page).toContain("₩1,300,000");
+    expect(page).toContain("US$1,000.00");
+    expect(page).not.toContain("평가금액(원화)");
+  });
+
   it("renders auth and error pages", () => {
     expect(loginPage().value).toContain('id="login-button"');
     expect(registerPage({ setupTokenRequired: true }).value).toContain('id="setup-token"');

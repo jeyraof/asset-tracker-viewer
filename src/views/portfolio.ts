@@ -39,8 +39,25 @@ function accountLabel(account: {
 
 function krwNetValue(summary: AccountSummary, fx: FxRate | null): number {
   const value = summary.netAssetAmount ?? 0;
-  if (summary.currency === "KRW" || fx === null) return value;
+  if (fx === null || summary.currency !== fx.base) return value;
   return value * fx.rate;
+}
+
+/**
+ * Money cell: converts to KRW using the latest fx rate when the value is in the
+ * fx base currency, showing the original amount in small text underneath.
+ */
+function moneyCell(
+  value: number | null | undefined,
+  currency: string,
+  fx: FxRate | null,
+  signed = false,
+): SafeHtml {
+  const format = signed ? formatSignedMoney : formatMoney;
+  if (!fx || currency !== fx.base || value == null || !Number.isFinite(value)) {
+    return html`${format(value, currency)}`;
+  }
+  return html`${format(value * fx.rate, "KRW")}<div class="muted label-sub">${format(value, currency)}</div>`;
 }
 
 function byNetDesc(fx: FxRate | null) {
@@ -52,10 +69,10 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null): SafeHtml 
     (account) => html`<tr>
   <td class="row-title" data-label="계좌"><a href="/accounts/${account.id}">${accountLabel(account)}</a><div class="muted"><span title="${account.provider}">${providerName(account.provider)}</span> · ${countryFlag(account.country)}</div></td>
   <td class="num" data-label="기준일">${formatDate(account.snapshotDate)}</td>
-  <td class="num" data-label="순자산">${formatMoney(account.netAssetAmount, account.currency)}</td>
-  <td class="num" data-label="평가금액">${formatMoney(account.totalEvalAmount, account.currency)}</td>
-  <td class="num ${pnlClass(account.evalPflsAmount)}" data-label="평가손익">${formatSignedMoney(account.evalPflsAmount, account.currency)}</td>
-  <td class="num" data-label="예수금">${formatMoney(account.depositTotal, account.currency)}</td>
+  <td class="num" data-label="순자산">${moneyCell(account.netAssetAmount, account.currency, fx)}</td>
+  <td class="num" data-label="평가금액">${moneyCell(account.totalEvalAmount, account.currency, fx)}</td>
+  <td class="num ${pnlClass(account.evalPflsAmount)}" data-label="평가손익">${moneyCell(account.evalPflsAmount, account.currency, fx, true)}</td>
+  <td class="num" data-label="예수금">${moneyCell(account.depositTotal, account.currency, fx)}</td>
 </tr>`,
   );
 
@@ -109,21 +126,16 @@ ${fx ? html`<p class="muted"><a href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")
 
 function summaryList(account: Account, summary: AccountSummary | null, fx: FxRate | null): SafeHtml {
   const currency = account.currency;
-  const totalEvalKrw =
-    currency !== "KRW" && fx && summary?.totalEvalAmount != null
-      ? summary.totalEvalAmount * fx.rate
-      : null;
 
   return html`<div class="card">
   <h3>${accountLabel(account)}</h3>
   <dl>
     <dt>기준일</dt><dd>${formatDate(account.snapshotDate)}</dd>
-    <dt>순자산</dt><dd>${formatMoney(summary?.netAssetAmount, currency)}</dd>
-    <dt>평가금액</dt><dd>${formatMoney(summary?.totalEvalAmount, currency)}</dd>
-    <dt>평가손익</dt><dd class="${pnlClass(summary?.evalPflsAmount)}">${formatSignedMoney(summary?.evalPflsAmount, currency)}</dd>
-    <dt>매입금액</dt><dd>${formatMoney(summary?.purchaseAmountTotal, currency)}</dd>
-    <dt>예수금</dt><dd>${formatMoney(summary?.depositTotal, currency)}</dd>
-    ${totalEvalKrw != null ? html`<dt>평가금액(원화)</dt><dd>${formatMoney(totalEvalKrw, "KRW")}</dd>` : html``}
+    <dt>순자산</dt><dd>${moneyCell(summary?.netAssetAmount, currency, fx)}</dd>
+    <dt>평가금액</dt><dd>${moneyCell(summary?.totalEvalAmount, currency, fx)}</dd>
+    <dt>평가손익</dt><dd class="${pnlClass(summary?.evalPflsAmount)}">${moneyCell(summary?.evalPflsAmount, currency, fx, true)}</dd>
+    <dt>매입금액</dt><dd>${moneyCell(summary?.purchaseAmountTotal, currency, fx)}</dd>
+    <dt>예수금</dt><dd>${moneyCell(summary?.depositTotal, currency, fx)}</dd>
   </dl>
 </div>`;
 }
