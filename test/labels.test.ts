@@ -5,6 +5,7 @@ describe("providerName", () => {
   it("maps known broker codes to names", () => {
     expect(providerName("kis")).toBe("한국투자증권");
     expect(providerName("kiwoom")).toBe("키움증권");
+    expect(providerName("toss")).toBe("토스증권");
   });
 
   it("is case-insensitive and trims", () => {

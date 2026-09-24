@@ -34,6 +34,8 @@ header {
   border-bottom: 1px solid var(--border);
 }
 h1 { font-size: 1.25rem; margin: 0; }
+.nav-actions { display: flex; align-items: center; gap: 0.75rem; }
+.nav-fx { font-size: 0.85em; color: var(--muted); }
 h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
 h2 .muted { font-weight: 400; }
 a { color: inherit; text-decoration: none; }

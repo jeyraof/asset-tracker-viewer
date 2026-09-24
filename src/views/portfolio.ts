@@ -71,6 +71,13 @@ function byNetDesc(fx: FxRate | null) {
   return (a: AccountSummary, b: AccountSummary) => krwNetValue(b, fx) - krwNetValue(a, fx) || a.id - b.id;
 }
 
+/** USD/KRW link shown in the header, to the left of the logout button. */
+function fxLink(fx: FxRate | null): SafeHtml {
+  return fx
+    ? html`<a class="nav-fx" href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a>`
+    : html``;
+}
+
 function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal = false): SafeHtml {
   const rows = accounts.map(
     (account) => html`<tr>
@@ -88,6 +95,7 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal 
     showTotal && canTotal
       ? {
           netAsset: accounts.reduce((sum, account) => sum + krwAmount(netAsset(account), account.currency, fx), 0),
+          evalAmount: accounts.reduce((sum, account) => sum + krwAmount(evalAmount(account), account.currency, fx), 0),
           evalPfls: accounts.reduce((sum, account) => sum + krwAmount(account.evalPflsAmount, account.currency, fx), 0),
         }
       : null;
@@ -98,7 +106,7 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal 
       <td class="row-title" data-label="합계">합계</td>
       <td class="tfoot-empty"></td>
       <td class="num" data-label="순자산">${formatMoney(total.netAsset, "KRW")}</td>
-      <td class="tfoot-empty"></td>
+      <td class="num" data-label="평가금액">${formatMoney(total.evalAmount, "KRW")}</td>
       <td class="num ${pnlClass(total.evalPfls)}" data-label="평가손익">${formatSignedMoney(total.evalPfls, "KRW")}</td>
       <td class="tfoot-empty"></td>
     </tr>
@@ -135,18 +143,10 @@ export function accountsPage(summaries: AccountSummary[], fx: FxRate | null): Sa
     summaries.length === 0
       ? html`<h2>계좌</h2><p class="muted">표시할 계좌가 없습니다.</p>`
       : html`${accountsSection("투자 중", investing, fx, true)}
-${
-  other.length > 0
-    ? html`<details>
-  <summary>기타 계좌 <span class="muted">(${other.length})</span></summary>
-  ${accountsTable(other, fx)}
-</details>`
-    : html``
-}`
-  }
-${fx ? html`<p class="muted"><a href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a></p>` : html``}`;
+${accountsSection("기타 계좌", other, fx)}`
+  }`;
 
-  return layout({ title: "계좌 · Asset Tracker", showNav: true, body });
+  return layout({ title: "계좌 · Asset Tracker", showNav: true, navExtra: fxLink(fx), body });
 }
 
 function summaryList(account: Account, summary: AccountSummary | null, fx: FxRate | null): SafeHtml {
@@ -355,7 +355,7 @@ ${historySection(history, account.currency)}
 <h2>최근 거래</h2>
 ${tradesTable(trades, account.currency)}`;
 
-  return layout({ title: `${accountTitle(account).primary} · Asset Tracker`, showNav: true, body });
+  return layout({ title: `${accountTitle(account).primary} · Asset Tracker`, showNav: true, navExtra: fxLink(fx), body });
 }
 
 function fxTable(rates: FxRate[]): SafeHtml {
@@ -409,5 +409,5 @@ ${trendChart(data, {
 })}
 ${rates.length > 0 ? fxTable(rates) : html``}`;
 
-  return layout({ title: `${base}/${quote} 환율 · Asset Tracker`, showNav: true, body });
+  return layout({ title: `${base}/${quote} 환율 · Asset Tracker`, showNav: true, navExtra: fxLink(latest), body });
 }

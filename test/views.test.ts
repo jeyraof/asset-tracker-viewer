@@ -69,7 +69,13 @@ function trade(overrides: Partial<Trade> = {}): Trade {
 }
 
 function detail(
-  overrides: { history?: SnapshotPoint[]; holdings?: Holding[]; trades?: Trade[]; alias?: string | null } = {},
+  overrides: {
+    history?: SnapshotPoint[];
+    holdings?: Holding[];
+    trades?: Trade[];
+    alias?: string | null;
+    fx?: FxRate | null;
+  } = {},
 ) {
   return {
     account: {
@@ -86,7 +92,7 @@ function detail(
     holdings: overrides.holdings ?? [],
     history: overrides.history ?? [],
     trades: overrides.trades ?? [],
-    fx: null,
+    fx: overrides.fx ?? null,
   };
 }
 
@@ -197,7 +203,7 @@ describe("accountsPage", () => {
     expect(page).toContain("&lt;script&gt;");
   });
 
-  it("shows investing accounts and collapses the rest under 기타 계좌", () => {
+  it("shows investing accounts and the rest under 기타 계좌", () => {
     const page = accountsPage(
       [
         summary({ id: 1, netAssetAmount: 0 }),
@@ -211,26 +217,26 @@ describe("accountsPage", () => {
     expect(page).toContain("기타 계좌");
     expect(page).not.toContain("잔고 계좌");
     expect(page).not.toContain("빈 계좌");
+    expect(page).not.toContain("<details>");
 
-    expect(page).toContain("<details>");
-    expect(page).not.toContain("<details open");
-
-    const details = page.slice(page.indexOf("<details>"));
-    expect(details).toContain('href="/accounts/1"');
-    expect(details).toContain('href="/accounts/2"');
-    expect(details).not.toContain('href="/accounts/3"');
+    const other = page.slice(page.indexOf("기타 계좌"));
+    expect(other).toContain('href="/accounts/1"');
+    expect(other).toContain('href="/accounts/2"');
+    expect(other).not.toContain('href="/accounts/3"');
   });
 
-  it("totals investing net asset and pnl in krw", () => {
+  it("totals investing net asset, eval, and pnl in krw", () => {
     const page = accountsPage(
       [
-        summary({ id: 3, name: "KRW", currency: "KRW", netAssetAmount: 1000, evalPflsAmount: 100, holdingCount: 1 }),
-        summary({ id: 4, name: "USD", currency: "USD", netAssetAmount: 2, evalPflsAmount: 1, holdingCount: 1 }),
+        summary({ id: 3, name: "KRW", currency: "KRW", securitiesEvalAmount: 1000, depositTotal: 200, evalPflsAmount: 100, holdingCount: 1 }),
+        summary({ id: 4, name: "USD", currency: "USD", securitiesEvalAmount: 2, depositTotal: 0, evalPflsAmount: 1, holdingCount: 1 }),
       ],
       fx,
     ).value;
 
+    // net = (1000+200) + 2*1300 = 3800 ; eval = 1000 + 2*1300 = 3600 ; pnl = 100 + 1*1300 = 1400
     expect(page).toContain("<tfoot>");
+    expect(page).toContain("₩3,800");
     expect(page).toContain("₩3,600");
     expect(page).toContain("+₩1,400");
   });
@@ -356,10 +362,17 @@ describe("accountsPage", () => {
     expect(trades).not.toContain('<table class="responsive">');
   });
 
-  it("links the fx footer to the fx history page and drops the passkey note", () => {
+  it("links fx in the header and drops the passkey note", () => {
     const page = accountsPage([summary({ id: 3, netAssetAmount: 100 })], fx).value;
-    expect(page).toContain('<a href="/fx">USD/KRW');
+    expect(page).toContain('<div class="nav-actions">');
+    expect(page).toContain('<a class="nav-fx" href="/fx">USD/KRW');
+    expect(page).not.toContain('<p class="muted"><a href="/fx">');
     expect(page).not.toContain("passkey로 보호된");
+  });
+
+  it("shows the fx link in the header on the account detail page", () => {
+    const page = accountPage(detail({ fx })).value;
+    expect(page).toContain('<a class="nav-fx" href="/fx">USD/KRW');
   });
 
   it("renders the fx history page with a chart and an expanded table", () => {

@@ -4,13 +4,15 @@ export interface LayoutOptions {
   title: string;
   page?: string;
   showNav?: boolean;
+  /** Extra content shown in the header, left of the logout button. */
+  navExtra?: SafeHtml;
   body: SafeHtml;
 }
 
-function nav(): SafeHtml {
+function nav(navExtra?: SafeHtml): SafeHtml {
   return html`<header>
   <h1><a href="/">Asset Tracker</a></h1>
-  <form method="post" action="/auth/logout"><button type="submit">로그아웃</button></form>
+  <div class="nav-actions">${navExtra}<form method="post" action="/auth/logout"><button type="submit">로그아웃</button></form></div>
 </header>`;
 }
 
@@ -24,7 +26,7 @@ export function layout(options: LayoutOptions): SafeHtml {
 <link rel="stylesheet" href="/style.css">
 </head>
 <body data-page="${options.page ?? ""}">
-${options.showNav ? nav() : safe("")}
+${options.showNav ? nav(options.navExtra) : safe("")}
 <main>${options.body}</main>
 <script src="/client.js" defer></script>
 </body>
