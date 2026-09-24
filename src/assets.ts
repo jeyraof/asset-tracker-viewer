@@ -48,7 +48,7 @@ header {
 h1 { font-size: 1.25rem; margin: 0; }
 h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
 h2 .muted { font-weight: 400; }
-a { color: inherit; }
+a { color: inherit; text-decoration: none; }
 a.back { display: inline-block; padding: 0.2rem 0; color: var(--muted); }
 .muted { color: var(--muted); }
 .label-sub { font-size: 0.8em; font-weight: 400; }
