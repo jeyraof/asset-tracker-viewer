@@ -199,7 +199,7 @@ describe("accountsPage", () => {
     expect(page).toContain("&lt;script&gt;");
   });
 
-  it("separates investing, cash, and empty accounts", () => {
+  it("shows investing accounts and collapses the rest under 기타 계좌", () => {
     const page = accountsPage(
       [
         summary({ id: 1, netAssetAmount: 0 }),
@@ -209,20 +209,44 @@ describe("accountsPage", () => {
       null,
     ).value;
 
-    const investing = page.indexOf("투자 중");
-    const cash = page.indexOf("잔고 계좌");
-    const empty = page.indexOf("빈 계좌");
-    expect(investing).toBeGreaterThan(-1);
-    expect(cash).toBeGreaterThan(investing);
-    expect(empty).toBeGreaterThan(cash);
+    expect(page).toContain("투자 중");
+    expect(page).toContain("기타 계좌");
+    expect(page).not.toContain("잔고 계좌");
+    expect(page).not.toContain("빈 계좌");
 
     expect(page).toContain("<details>");
     expect(page).not.toContain("<details open");
 
-    // The empty account lives inside the collapsed details block.
-    const detailsBlock = page.slice(page.indexOf("<details>"));
-    expect(detailsBlock).toContain('href="/accounts/1"');
-    expect(page.slice(page.indexOf("<details>")).includes('href="/accounts/3"')).toBe(false);
+    const details = page.slice(page.indexOf("<details>"));
+    expect(details).toContain('href="/accounts/1"');
+    expect(details).toContain('href="/accounts/2"');
+    expect(details).not.toContain('href="/accounts/3"');
+  });
+
+  it("totals investing net asset and pnl in krw", () => {
+    const page = accountsPage(
+      [
+        summary({ id: 3, name: "KRW", currency: "KRW", netAssetAmount: 1000, evalPflsAmount: 100, holdingCount: 1 }),
+        summary({ id: 4, name: "USD", currency: "USD", netAssetAmount: 2, evalPflsAmount: 1, holdingCount: 1 }),
+      ],
+      fx,
+    ).value;
+
+    expect(page).toContain("<tfoot>");
+    expect(page).toContain("₩3,600");
+    expect(page).toContain("+₩1,400");
+  });
+
+  it("omits the total when mixed currencies cannot be converted", () => {
+    const page = accountsPage(
+      [
+        summary({ id: 3, currency: "KRW", netAssetAmount: 1000, holdingCount: 1 }),
+        summary({ id: 4, currency: "USD", netAssetAmount: 2, holdingCount: 1 }),
+      ],
+      null,
+    ).value;
+
+    expect(page).not.toContain("<tfoot>");
   });
 
   it("sorts investing accounts by net asset (fx converted)", () => {
@@ -251,6 +275,7 @@ describe("accountsPage", () => {
     expect(page).toContain('<table class="responsive">');
     expect(page).toContain('data-label="평가금액"');
     expect(page).not.toContain("&lt;tr");
+    expect(page).not.toContain("<h3>");
   });
 
   it("renders a composition bar and per-holding allocation for weights", () => {
@@ -328,7 +353,7 @@ describe("accountsPage", () => {
     expect(page).not.toContain("passkey로 보호된");
   });
 
-  it("renders the fx history page with a chart and a collapsed table", () => {
+  it("renders the fx history page with a chart and an expanded table", () => {
     const rates: FxRate[] = [
       { base: "USD", quote: "KRW", date: "2026-09-24", rate: 1299 },
       { base: "USD", quote: "KRW", date: "2026-09-23", rate: 1280 },
@@ -337,9 +362,8 @@ describe("accountsPage", () => {
 
     expect(page).toContain("USD/KRW");
     expect(page).toContain('<svg class="spark"');
-    expect(page).toContain("<details>");
-    expect(page).toContain("표로 보기");
-    expect(page).not.toContain("<details open");
+    expect(page).not.toContain("<details>");
+    expect(page).not.toContain("표로 보기");
     expect(page).not.toContain("NaN");
     expect(page).toContain("+₩19 (+1.48%)");
     expect(page).toContain("평균");

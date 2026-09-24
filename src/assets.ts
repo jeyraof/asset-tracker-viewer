@@ -49,9 +49,9 @@ th, td { text-align: right; padding: 0.4rem 0.5rem; border-bottom: 1px solid var
 th:first-child, td:first-child { text-align: left; }
 th { color: var(--muted); font-weight: 500; }
 .num { font-variant-numeric: tabular-nums; }
+tfoot td { font-weight: 600; }
 .cards { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; }
 .card { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; min-width: 240px; }
-.card h3 { margin: 0 0 0.5rem; font-size: 1rem; }
 .card dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 1rem; }
 .card dt { color: var(--muted); }
 .card dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
@@ -160,6 +160,7 @@ details > summary {
   table.responsive td.row-title .muted { font-weight: 400; }
   table.responsive td.num { white-space: nowrap; }
   table.responsive td.weight-cell { display: none; }
+  table.responsive .tfoot-empty { display: none; }
   .alloc { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.35rem; }
   .alloc .bar { flex: 1 1 auto; }
   .alloc .pct { flex: 0 0 auto; font-variant-numeric: tabular-nums; }

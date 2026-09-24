@@ -38,10 +38,15 @@ function accountLabel(account: {
     : html`${primary}`;
 }
 
-function krwNetValue(summary: AccountSummary, fx: FxRate | null): number {
-  const value = summary.netAssetAmount ?? 0;
-  if (fx === null || summary.currency !== fx.base) return value;
+/** Converts a value to KRW when it is in the fx base currency; otherwise returns it as-is. */
+function krwAmount(value: number | null | undefined, currency: string, fx: FxRate | null): number {
+  if (value == null || !Number.isFinite(value)) return 0;
+  if (fx === null || currency !== fx.base) return value;
   return value * fx.rate;
+}
+
+function krwNetValue(summary: AccountSummary, fx: FxRate | null): number {
+  return krwAmount(summary.netAssetAmount, summary.currency, fx);
 }
 
 /**
@@ -65,7 +70,7 @@ function byNetDesc(fx: FxRate | null) {
   return (a: AccountSummary, b: AccountSummary) => krwNetValue(b, fx) - krwNetValue(a, fx) || a.id - b.id;
 }
 
-function accountsTable(accounts: AccountSummary[], fx: FxRate | null): SafeHtml {
+function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal = false): SafeHtml {
   const rows = accounts.map(
     (account) => html`<tr>
   <td class="row-title" data-label="계좌"><a href="/accounts/${account.id}">${accountLabel(account)}</a><div class="muted"><span title="${account.provider}">${providerName(account.provider)}</span> · ${countryFlag(account.country)}</div></td>
@@ -77,6 +82,28 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null): SafeHtml 
 </tr>`,
   );
 
+  const canTotal = fx !== null || accounts.every((account) => account.currency === "KRW");
+  const total =
+    showTotal && canTotal
+      ? {
+          netAsset: accounts.reduce((sum, account) => sum + krwAmount(account.netAssetAmount, account.currency, fx), 0),
+          evalPfls: accounts.reduce((sum, account) => sum + krwAmount(account.evalPflsAmount, account.currency, fx), 0),
+        }
+      : null;
+
+  const footer = total
+    ? html`<tfoot>
+    <tr>
+      <td class="row-title" data-label="합계">합계</td>
+      <td class="tfoot-empty"></td>
+      <td class="num" data-label="순자산">${formatMoney(total.netAsset, "KRW")}</td>
+      <td class="tfoot-empty"></td>
+      <td class="num ${pnlClass(total.evalPfls)}" data-label="평가손익">${formatSignedMoney(total.evalPfls, "KRW")}</td>
+      <td class="tfoot-empty"></td>
+    </tr>
+  </tfoot>`
+    : html``;
+
   return html`<table class="responsive">
   <thead>
     <tr>
@@ -84,6 +111,7 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null): SafeHtml 
     </tr>
   </thead>
   <tbody>${rows}</tbody>
+  ${footer}
 </table>`;
 }
 
@@ -91,31 +119,26 @@ function accountsSection(
   title: string,
   accounts: AccountSummary[],
   fx: FxRate | null,
+  showTotal = false,
 ): SafeHtml {
   if (accounts.length === 0) return html``;
   return html`<h2>${title} <span class="muted">${accounts.length}</span></h2>
-${accountsTable(accounts, fx)}`;
+${accountsTable(accounts, fx, showTotal)}`;
 }
 
 export function accountsPage(summaries: AccountSummary[], fx: FxRate | null): SafeHtml {
   const investing = summaries.filter((account) => account.holdingCount > 0).sort(byNetDesc(fx));
-  const cash = summaries
-    .filter((account) => account.holdingCount === 0 && (account.netAssetAmount ?? 0) > 0)
-    .sort(byNetDesc(fx));
-  const empty = summaries
-    .filter((account) => (account.netAssetAmount ?? 0) <= 0)
-    .sort((a, b) => a.id - b.id);
+  const other = summaries.filter((account) => account.holdingCount === 0).sort(byNetDesc(fx));
 
   const body = html`${
     summaries.length === 0
       ? html`<h2>계좌</h2><p class="muted">표시할 계좌가 없습니다.</p>`
-      : html`${accountsSection("투자 중", investing, fx)}
-${accountsSection("잔고 계좌", cash, fx)}
+      : html`${accountsSection("투자 중", investing, fx, true)}
 ${
-  empty.length > 0
+  other.length > 0
     ? html`<details>
-  <summary>빈 계좌 <span class="muted">(${empty.length})</span></summary>
-  ${accountsTable(empty, fx)}
+  <summary>기타 계좌 <span class="muted">(${other.length})</span></summary>
+  ${accountsTable(other, fx)}
 </details>`
     : html``
 }`
@@ -129,7 +152,6 @@ function summaryList(account: Account, summary: AccountSummary | null, fx: FxRat
   const currency = account.currency;
 
   return html`<div class="card">
-  <h3>${accountLabel(account)}</h3>
   <dl>
     <dt>기준일</dt><dd>${formatDate(account.snapshotDate)}</dd>
     <dt>순자산</dt><dd>${moneyCell(summary?.netAssetAmount, currency, fx)}</dd>
@@ -386,14 +408,7 @@ ${trendChart(data, {
   ariaLabel: `${base}/${quote} 환율 추이`,
   formatValue: (value) => formatMoney(value, "KRW"),
 })}
-${
-  rates.length > 0
-    ? html`<details>
-  <summary>표로 보기</summary>
-  ${fxTable(rates)}
-</details>`
-    : html``
-}`;
+${rates.length > 0 ? fxTable(rates) : html``}`;
 
   return layout({ title: `${base}/${quote} 환율 · Asset Tracker`, showNav: true, body });
 }
