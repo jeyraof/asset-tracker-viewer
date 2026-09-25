@@ -34,9 +34,9 @@ header {
   border-bottom: 1px solid var(--border);
 }
 h1 { font-size: 1.25rem; margin: 0; }
-.nav-actions { display: flex; align-items: center; gap: 0.75rem; }
-.nav-fx { font-size: 0.85em; color: var(--muted); }
-.nav-button { font-size: 0.85em; padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; color: inherit; }
+.nav-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.nav-button { display: inline-block; font-size: 0.85em; line-height: 1; padding: 0.45rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: inherit; }
+.nav-button.nav-fx { color: var(--muted); }
 h2 { font-size: 1rem; margin: 2rem 0 0.75rem; }
 h2 .muted { font-weight: 400; }
 a { color: inherit; text-decoration: none; }

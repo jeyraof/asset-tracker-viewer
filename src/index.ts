@@ -25,7 +25,7 @@ import {
   listRecentTrades,
   listSnapshotHistory,
 } from "./db/portfolio";
-import { listFxFetches, listSyncErrors, listSyncRuns } from "./db/status";
+import { listSyncErrors, listSyncRuns } from "./db/status";
 import type { Env } from "./env";
 import { base64urlEncode } from "./lib/base64url";
 import type { SafeHtml } from "./lib/html";
@@ -326,13 +326,12 @@ export default {
 
       if (method === "GET" && pathname === "/status") {
         if (!(await currentSession(env, request))) return redirect("/login");
-        const [runs, errors, fxFetches, fx] = await Promise.all([
+        const [runs, errors, fx] = await Promise.all([
           listSyncRuns(env.DB),
           listSyncErrors(env.DB),
-          listFxFetches(env.DB),
           getLatestFxRate(env.DB, "USD", "KRW"),
         ]);
-        return htmlResponse(statusPage({ runs, errors, fxFetches, fx }));
+        return htmlResponse(statusPage({ runs, errors, fx }));
       }
 
       const accountMatch = /^\/accounts\/(\d+)$/.exec(pathname);

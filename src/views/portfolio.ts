@@ -74,7 +74,7 @@ function byNetDesc(fx: FxRate | null) {
 /** USD/KRW link shown in the header, to the left of the logout button. */
 export function fxLink(fx: FxRate | null): SafeHtml {
   return fx
-    ? html`<a class="nav-fx" href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a>`
+    ? html`<a class="nav-button nav-fx" href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a>`
     : html``;
 }
 

@@ -2,40 +2,113 @@ interface SyncRunRow {
   run_id: string;
   provider: string | null;
   source: string;
+  task: string;
   status: string;
   started_at: string;
   finished_at: string | null;
   details_json: string | null;
 }
 
+export interface RunCounts {
+  accounts: number;
+  holdings: number;
+  trades: number;
+  instruments: number;
+  quotes: number;
+  rates: number;
+}
+
 export interface SyncRun {
   runId: string;
   provider: string | null;
   source: string;
+  task: string;
   status: string;
   startedAt: string;
   finishedAt: string | null;
   durationMs: number | null;
   errorCount: number;
+  /** Providers actually involved (derived from details for all-account runs). */
+  providers: string[];
+  counts: RunCounts;
 }
 
-/** Pulls duration and error count out of a run's free-form details JSON. */
-export function parseRunDetails(json: string | null): { durationMs: number | null; errorCount: number } {
-  if (!json) return { durationMs: null, errorCount: 0 };
+interface ParsedDetails {
+  durationMs: number | null;
+  errorCount: number;
+  providers: string[];
+  counts: RunCounts;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function asArray(value: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(asRecord).filter((entry): entry is Record<string, unknown> => entry !== null);
+}
+
+function numOf(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function strOf(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+/** Extracts duration, errors, providers, and per-task counts from a run's details JSON. */
+export function parseRunDetails(json: string | null): ParsedDetails {
+  const empty: ParsedDetails = {
+    durationMs: null,
+    errorCount: 0,
+    providers: [],
+    counts: { accounts: 0, holdings: 0, trades: 0, instruments: 0, quotes: 0, rates: 0 },
+  };
+  if (!json) return empty;
+
+  let parsed: Record<string, unknown>;
   try {
-    const parsed = JSON.parse(json) as { durationMs?: unknown; errors?: unknown };
-    const durationMs = typeof parsed.durationMs === "number" ? parsed.durationMs : null;
-    const errorCount = Array.isArray(parsed.errors) ? parsed.errors.length : 0;
-    return { durationMs, errorCount };
+    const value: unknown = JSON.parse(json);
+    const record = asRecord(value);
+    if (!record) return empty;
+    parsed = record;
   } catch {
-    return { durationMs: null, errorCount: 0 };
+    return empty;
   }
+
+  const accounts = asArray(parsed.accounts);
+  const quotes = asArray(parsed.quotes);
+  const rates = asArray(parsed.rates);
+
+  const providers = new Set<string>();
+  for (const entry of [...accounts, ...quotes]) {
+    const provider = strOf(entry.provider);
+    if (provider) providers.add(provider);
+  }
+
+  const sum = (entries: Record<string, unknown>[], key: string) =>
+    entries.reduce((total, entry) => total + numOf(entry[key]), 0);
+
+  return {
+    durationMs: typeof parsed.durationMs === "number" ? parsed.durationMs : null,
+    errorCount: Array.isArray(parsed.errors) ? parsed.errors.length : 0,
+    providers: [...providers],
+    counts: {
+      accounts: accounts.length,
+      holdings: sum(accounts, "holdings"),
+      trades: sum(accounts, "trades"),
+      instruments: sum(quotes, "instruments"),
+      quotes: sum(quotes, "quotes"),
+      rates: rates.length,
+    },
+  };
 }
 
 export function listSyncRuns(db: D1Database, limit = 25): Promise<SyncRun[]> {
   return db
     .prepare(
-      `SELECT run_id, provider, source, status, started_at, finished_at, details_json
+      `SELECT run_id, provider, source, task, status, started_at, finished_at, details_json
          FROM sync_runs ORDER BY id DESC LIMIT ?`,
     )
     .bind(limit)
@@ -47,11 +120,14 @@ export function listSyncRuns(db: D1Database, limit = 25): Promise<SyncRun[]> {
           runId: row.run_id,
           provider: row.provider,
           source: row.source,
+          task: row.task,
           status: row.status,
           startedAt: row.started_at,
           finishedAt: row.finished_at,
           durationMs: details.durationMs,
           errorCount: details.errorCount,
+          providers: details.providers,
+          counts: details.counts,
         };
       }),
     );
@@ -94,43 +170,6 @@ export function listSyncErrors(db: D1Database, limit = 25): Promise<SyncError[]>
         code: row.code,
         message: row.message,
         createdAt: row.created_at,
-      })),
-    );
-}
-
-interface FxFetchRow {
-  provider: string | null;
-  source: string | null;
-  fetched_at: string;
-  date: string;
-  rate: number;
-}
-
-export interface FxFetch {
-  provider: string | null;
-  source: string | null;
-  fetchedAt: string;
-  date: string;
-  rate: number;
-}
-
-/** Latest stored record per fx (provider, source), used as a proxy for "last fetched". */
-export function listFxFetches(db: D1Database): Promise<FxFetch[]> {
-  return db
-    .prepare(
-      `SELECT provider, source, created_at AS fetched_at, date, rate
-         FROM fx_rates
-        WHERE id IN (SELECT MAX(id) FROM fx_rates GROUP BY provider, source)
-        ORDER BY created_at DESC`,
-    )
-    .all<FxFetchRow>()
-    .then(({ results }) =>
-      (results ?? []).map((row) => ({
-        provider: row.provider,
-        source: row.source,
-        fetchedAt: row.fetched_at,
-        date: row.date,
-        rate: row.rate,
       })),
     );
 }

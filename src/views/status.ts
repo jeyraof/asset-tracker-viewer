@@ -1,10 +1,15 @@
 import type { FxRate } from "../db/portfolio";
-import type { FxFetch, SyncError, SyncRun } from "../db/status";
-import { formatDate, formatDurationMs, formatKst, formatMoney } from "../lib/format";
+import type { SyncError, SyncRun } from "../db/status";
+import { formatDate, formatDurationMs, formatKst } from "../lib/format";
 import { html, type SafeHtml } from "../lib/html";
 import { providerName } from "../lib/labels";
 import { layout } from "./layout";
 import { fxLink } from "./portfolio";
+
+const TASK_LABELS: Record<string, string> = {
+  sync: "동기화",
+  fx: "환율",
+};
 
 const STATUS_LABELS: Record<string, string> = {
   success: "성공",
@@ -12,6 +17,10 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "실패",
   running: "진행 중",
 };
+
+function taskText(task: string): string {
+  return TASK_LABELS[task] ?? task;
+}
 
 function statusText(status: string): string {
   return STATUS_LABELS[status] ?? status;
@@ -23,38 +32,38 @@ function statusClass(status: string): string {
   return "muted";
 }
 
-function providerLabel(provider: string | null): string {
-  return provider ? providerName(provider) : "전체";
+function targetLabel(run: SyncRun): string {
+  if (run.provider) return providerName(run.provider);
+  if (run.providers.length > 0) return run.providers.map(providerName).join(", ");
+  return "전체";
+}
+
+function targetSummary(run: SyncRun): string | null {
+  const counts = run.counts;
+  if (run.task === "fx") return counts.rates > 0 ? `환율 ${counts.rates}건` : null;
+  const parts: string[] = [];
+  if (counts.accounts > 0) parts.push(`계좌 ${counts.accounts}`);
+  if (counts.holdings > 0) parts.push(`보유 ${counts.holdings}`);
+  if (counts.trades > 0) parts.push(`체결 ${counts.trades}`);
+  if (counts.quotes > 0) parts.push(`시세 ${counts.quotes}`);
+  return parts.length > 0 ? parts.join(" · ") : null;
 }
 
 function runsTable(runs: SyncRun[]): SafeHtml {
-  const rows = runs.map(
-    (run) => html`<tr>
+  const rows = runs.map((run) => {
+    const summary = targetSummary(run);
+    return html`<tr>
   <td class="row-title" data-label="시각(KST)">${formatKst(run.startedAt)}</td>
-  <td data-label="대상">${providerLabel(run.provider)}</td>
+  <td data-label="작업">${taskText(run.task)}</td>
+  <td data-label="대상">${targetLabel(run)}${summary ? html`<div class="muted label-sub">${summary}</div>` : html``}</td>
   <td data-label="트리거">${run.source}</td>
   <td class="${statusClass(run.status)}" data-label="상태">${statusText(run.status)}</td>
   <td class="num" data-label="소요">${formatDurationMs(run.durationMs)}</td>
   <td class="num" data-label="오류">${run.errorCount}</td>
-</tr>`,
-  );
+</tr>`;
+  });
   return html`<table class="responsive">
-  <thead><tr><th>시각(KST)</th><th>대상</th><th>트리거</th><th>상태</th><th>소요</th><th>오류</th></tr></thead>
-  <tbody>${rows}</tbody>
-</table>`;
-}
-
-function fxTable(fetches: FxFetch[]): SafeHtml {
-  const rows = fetches.map(
-    (fetch) => html`<tr>
-  <td class="row-title" data-label="소스">${fetch.provider ? providerName(fetch.provider) : "-"}<div class="muted">${fetch.source ?? ""}</div></td>
-  <td data-label="마지막 수집(KST)">${formatKst(fetch.fetchedAt)}</td>
-  <td data-label="기준일">${formatDate(fetch.date)}</td>
-  <td class="num" data-label="환율">${formatMoney(fetch.rate, "KRW")}</td>
-</tr>`,
-  );
-  return html`<table class="responsive">
-  <thead><tr><th>소스</th><th>마지막 수집(KST)</th><th>기준일</th><th>환율</th></tr></thead>
+  <thead><tr><th>시각(KST)</th><th>작업</th><th>대상</th><th>트리거</th><th>상태</th><th>소요</th><th>오류</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>`;
 }
@@ -77,16 +86,13 @@ function errorsTable(errors: SyncError[]): SafeHtml {
 export interface StatusPageInput {
   runs: SyncRun[];
   errors: SyncError[];
-  fxFetches: FxFetch[];
   fx: FxRate | null;
 }
 
 export function statusPage(input: StatusPageInput): SafeHtml {
-  const { runs, errors, fxFetches, fx } = input;
+  const { runs, errors, fx } = input;
   const body = html`<h2>수집 현황</h2>
 ${runs.length === 0 ? html`<p class="muted">수집 기록이 없습니다.</p>` : runsTable(runs)}
-<h2>환율 수집</h2>
-${fxFetches.length === 0 ? html`<p class="muted">환율 수집 기록이 없습니다.</p>` : fxTable(fxFetches)}
 <h2>최근 오류</h2>
 ${errors.length === 0 ? html`<p class="muted">오류 없음</p>` : errorsTable(errors)}`;
 

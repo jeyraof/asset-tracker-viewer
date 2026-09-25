@@ -392,14 +392,14 @@ describe("accountsPage", () => {
   it("links fx in the header and drops the passkey note", () => {
     const page = accountsPage([summary({ id: 3, netAssetAmount: 100 })], fx).value;
     expect(page).toContain('<div class="nav-actions">');
-    expect(page).toContain('<a class="nav-fx" href="/fx">USD/KRW');
+    expect(page).toContain('<a class="nav-button nav-fx" href="/fx">USD/KRW');
     expect(page).not.toContain('<p class="muted"><a href="/fx">');
     expect(page).not.toContain("passkey로 보호된");
   });
 
   it("shows the fx link in the header on the account detail page", () => {
     const page = accountPage(detail({ fx })).value;
-    expect(page).toContain('<a class="nav-fx" href="/fx">USD/KRW');
+    expect(page).toContain('<a class="nav-button nav-fx" href="/fx">USD/KRW');
   });
 
   it("renders the fx history page with a chart and an expanded table", () => {
