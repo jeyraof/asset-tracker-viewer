@@ -103,11 +103,11 @@ input {
 .cursor-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-sizing: border-box; }
 .single-point { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-sizing: border-box; }
 .single-point-label { position: absolute; left: 50%; bottom: 50%; transform: translateX(-50%); margin-bottom: 0.6rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.chart-tip { position: absolute; z-index: 2; pointer-events: none; transform: translateX(-50%); min-width: 7rem; padding: 0.4rem 0.55rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); font-size: 0.8rem; line-height: 1.35; }
+.chart-tip { position: absolute; z-index: 2; pointer-events: none; transform: translateX(-50%); width: max-content; max-width: 100%; min-width: 7rem; padding: 0.4rem 0.55rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12); font-size: 0.8rem; line-height: 1.35; }
 .chart-tip[hidden] { display: none; }
 .chart-tip .tip-time { color: var(--muted); font-size: 0.92em; }
-.chart-tip .tip-value { font-weight: 600; font-variant-numeric: tabular-nums; }
-.chart-tip .tip-sub { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-tip .tip-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chart-tip .tip-sub { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 ${WIDTH_CLASSES}
 ${COLOR_CLASSES}
@@ -341,9 +341,10 @@ export const CLIENT_JS = `(function () {
       tip.hidden = false;
       const tipWidth = tip.offsetWidth;
       const tipHeight = tip.offsetHeight;
+      const inset = 4;
       let tipLeft = left;
-      if (tipLeft - tipWidth / 2 < 0) tipLeft = tipWidth / 2;
-      if (tipLeft + tipWidth / 2 > width) tipLeft = width - tipWidth / 2;
+      if (tipLeft - tipWidth / 2 < inset) tipLeft = tipWidth / 2 + inset;
+      if (tipLeft + tipWidth / 2 > width - inset) tipLeft = width - tipWidth / 2 - inset;
       let tipTop = top - tipHeight - 10;
       if (tipTop < 0) tipTop = top + 12;
       tip.style.left = tipLeft + "px";
