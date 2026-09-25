@@ -491,6 +491,41 @@ describe("accountsPage", () => {
     expect(page).not.toContain("평가금액(원화)");
   });
 
+  it("labels the summary card with tags and formulas", () => {
+    const page = accountPage({
+      account: {
+        id: 3,
+        provider: "kis",
+        name: "Main",
+        alias: null,
+        accountNo: "00000000-01",
+        country: "KR",
+        currency: "KRW",
+        snapshotDate: "2026-09-24",
+      },
+      summary: summary({ id: 3, securitiesEvalAmount: 1000, depositTotal: 200, purchaseAmountTotal: 1050, evalPflsAmount: -50 }),
+      holdings: [],
+      history: [],
+      trades: [],
+      fx: null,
+    }).value;
+
+    expect(page).toContain("(A) 매입금액");
+    expect(page).toContain("(B) 평가손익");
+    expect(page).toContain('(C) 평가금액 <span class="muted label-sub">= (A) + (B)</span>');
+    expect(page).toContain("(D) 예수금");
+    expect(page).toContain('(E) 순자산 <span class="muted label-sub">= (C) + (D)</span>');
+    expect(page).toContain("평가금액 = 매입금액 + 평가손익, 순자산 = 평가금액 + 예수금");
+
+    const positions = ["(A) 매입금액", "(B) 평가손익", "(C) 평가금액", "(D) 예수금", "(E) 순자산"].map((label) =>
+      page.indexOf(label),
+    );
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+
+    // (E) = (C) + (D) => 1000 + 200
+    expect(page).toContain("₩1,200");
+  });
+
   it("renders auth and error pages", () => {
     expect(loginPage().value).toContain('id="login-button"');
     expect(registerPage({ setupTokenRequired: true }).value).toContain('id="setup-token"');

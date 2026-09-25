@@ -155,13 +155,14 @@ function summaryList(account: Account, summary: AccountSummary | null, fx: FxRat
   return html`<div class="card">
   <dl>
     <dt>기준일</dt><dd>${formatDate(account.snapshotDate)}</dd>
-    <dt>순자산</dt><dd>${moneyCell(summary ? netAsset(summary) : null, currency, fx)}</dd>
-    <dt>평가금액</dt><dd>${moneyCell(summary ? evalAmount(summary) : null, currency, fx)}</dd>
-    <dt>평가손익</dt><dd class="${pnlClass(summary?.evalPflsAmount)}">${moneyCell(summary?.evalPflsAmount, currency, fx, true)}</dd>
-    <dt>매입금액</dt><dd>${moneyCell(summary?.purchaseAmountTotal, currency, fx)}</dd>
-    <dt>예수금</dt><dd>${moneyCell(summary?.depositTotal, currency, fx)}</dd>
+    <dt>(A) 매입금액</dt><dd>${moneyCell(summary?.purchaseAmountTotal, currency, fx)}</dd>
+    <dt>(B) 평가손익</dt><dd class="${pnlClass(summary?.evalPflsAmount)}">${moneyCell(summary?.evalPflsAmount, currency, fx, true)}</dd>
+    <dt>(C) 평가금액 <span class="muted label-sub">= (A) + (B)</span></dt><dd>${moneyCell(summary ? evalAmount(summary) : null, currency, fx)}</dd>
+    <dt>(D) 예수금</dt><dd>${moneyCell(summary?.depositTotal, currency, fx)}</dd>
+    <dt>(E) 순자산 <span class="muted label-sub">= (C) + (D)</span></dt><dd>${moneyCell(summary ? netAsset(summary) : null, currency, fx)}</dd>
   </dl>
-</div>`;
+</div>
+<p class="muted label-sub">평가금액 = 매입금액 + 평가손익, 순자산 = 평가금액 + 예수금</p>`;
 }
 
 const PALETTE_SIZE = 8;
