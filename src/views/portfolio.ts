@@ -16,13 +16,13 @@ import { layout } from "./layout";
 function accountTitle(account: {
   alias: string | null;
   name: string | null;
-  externalId: string;
+  accountNo: string | null;
   provider: string;
 }): { primary: string; parenthetical: string | null } {
   const alias = account.alias?.trim();
   const name = account.name?.trim();
-  const externalId = account.externalId?.trim();
-  if (alias) return { primary: alias, parenthetical: externalId ? externalId : null };
+  const accountNo = account.accountNo?.trim();
+  if (alias) return { primary: alias, parenthetical: accountNo ? accountNo : null };
   return { primary: name ? name : providerName(account.provider), parenthetical: null };
 }
 
@@ -30,7 +30,7 @@ function accountTitle(account: {
 function accountLabel(account: {
   alias: string | null;
   name: string | null;
-  externalId: string;
+  accountNo: string | null;
   provider: string;
 }): SafeHtml {
   const { primary, parenthetical } = accountTitle(account);
@@ -72,7 +72,7 @@ function byNetDesc(fx: FxRate | null) {
 }
 
 /** USD/KRW link shown in the header, to the left of the logout button. */
-function fxLink(fx: FxRate | null): SafeHtml {
+export function fxLink(fx: FxRate | null): SafeHtml {
   return fx
     ? html`<a class="nav-fx" href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a>`
     : html``;
@@ -306,13 +306,12 @@ function historyChart(points: SnapshotPoint[], currency: string): SafeHtml {
   });
 }
 
+const SNAPSHOT_TABLE_LIMIT = 10;
+
 function historySection(points: SnapshotPoint[], currency: string): SafeHtml {
   if (points.length === 0) return html`<p class="muted">스냅샷 이력이 없습니다.</p>`;
   return html`${historyChart(points, currency)}
-<details>
-  <summary>표로 보기</summary>
-  ${historyTable(points, currency)}
-</details>`;
+${historyTable(points.slice(0, SNAPSHOT_TABLE_LIMIT), currency)}`;
 }
 
 function tradesTable(trades: Trade[], currency: string): SafeHtml {

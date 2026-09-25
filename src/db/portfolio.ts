@@ -3,7 +3,7 @@ export interface AccountSummary {
   provider: string;
   name: string | null;
   alias: string | null;
-  externalId: string;
+  accountNo: string | null;
   country: string;
   currency: string;
   snapshotDate: string | null;
@@ -21,7 +21,7 @@ interface AccountSummaryRow {
   provider: string;
   name: string | null;
   alias: string | null;
-  external_id: string;
+  account_no: string | null;
   country: string;
   currency: string;
   snapshot_date: string | null;
@@ -38,7 +38,7 @@ export interface Account {
   provider: string;
   name: string | null;
   alias: string | null;
-  externalId: string;
+  accountNo: string | null;
   country: string;
   currency: string;
   snapshotDate: string | null;
@@ -127,7 +127,7 @@ function mapSummaryRow(row: AccountSummaryRow): AccountSummary {
     provider: row.provider,
     name: row.name,
     alias: row.alias,
-    externalId: row.external_id,
+    accountNo: row.account_no,
     country: row.country,
     currency: row.currency,
     snapshotDate: row.snapshot_date,
@@ -140,7 +140,7 @@ function mapSummaryRow(row: AccountSummaryRow): AccountSummary {
   };
 }
 
-const SUMMARY_SELECT = `SELECT a.id, a.provider, a.name, a.alias, a.external_id, a.country, a.currency,
+const SUMMARY_SELECT = `SELECT a.id, a.provider, a.name, a.alias, a.account_no, a.country, a.currency,
          s.snapshot_date, s.net_asset_amount,
          s.eval_pfls_amount, s.deposit_total, s.purchase_amount_total,
          s.securities_eval_amount,
@@ -171,9 +171,9 @@ export async function getAccountSummary(db: D1Database, id: number): Promise<Acc
 
 export async function getAccount(db: D1Database, id: number): Promise<Account | null> {
   const account = await db
-    .prepare("SELECT id, provider, name, alias, external_id, country, currency FROM accounts WHERE id = ? AND active = 1")
+    .prepare("SELECT id, provider, name, alias, account_no, country, currency FROM accounts WHERE id = ? AND active = 1")
     .bind(id)
-    .first<{ id: number; provider: string; name: string | null; alias: string | null; external_id: string; country: string; currency: string }>();
+    .first<{ id: number; provider: string; name: string | null; alias: string | null; account_no: string | null; country: string; currency: string }>();
   if (!account) return null;
 
   const row = await db
@@ -190,7 +190,7 @@ export async function getAccount(db: D1Database, id: number): Promise<Account | 
     provider: account.provider,
     name: account.name,
     alias: account.alias,
-    externalId: account.external_id,
+    accountNo: account.account_no,
     country: account.country,
     currency: account.currency,
     snapshotDate: row?.snapshot_date ?? null,

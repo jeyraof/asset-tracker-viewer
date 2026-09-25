@@ -6,6 +6,7 @@ describe("providerName", () => {
     expect(providerName("kis")).toBe("한국투자증권");
     expect(providerName("kiwoom")).toBe("키움증권");
     expect(providerName("toss")).toBe("토스증권");
+    expect(providerName("koreaexim")).toBe("수출입은행");
   });
 
   it("is case-insensitive and trims", () => {

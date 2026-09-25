@@ -9,7 +9,7 @@ function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSu
     provider: "kis",
     name: `account-${overrides.id}`,
     alias: null,
-    externalId: "00000000-01",
+    accountNo: "00000000-01",
     country: "KR",
     currency: "KRW",
     snapshotDate: "2026-09-24",
@@ -83,7 +83,7 @@ function detail(
       provider: "kis",
       name: "Main",
       alias: overrides.alias ?? null,
-      externalId: "00000000-01",
+      accountNo: "00000000-01",
       country: "KR",
       currency: "KRW",
       snapshotDate: "2026-09-24",
@@ -104,7 +104,7 @@ function parseDataPoints(page: string): unknown[][] {
 }
 
 describe("history section", () => {
-  it("renders a net-asset chart with the table collapsed", () => {
+  it("renders a net-asset chart with the table expanded", () => {
     const page = accountPage(
       detail({
         history: [
@@ -120,14 +120,25 @@ describe("history section", () => {
     expect(page).toContain('<polygon class="area"');
     expect(page).toContain("최고");
     expect(page).toContain("최저");
-    expect(page).toContain("<details>");
-    expect(page).toContain("표로 보기");
-    expect(page).not.toContain("<details open");
+    expect(page).not.toContain("<details>");
+    expect(page).not.toContain("표로 보기");
     expect(page).not.toContain("NaN");
 
-    const chart = page.slice(page.indexOf('<figure class="chart"'), page.indexOf("<details>"));
+    const chartStart = page.indexOf('<figure class="chart"');
+    const tableStart = page.indexOf('<table class="responsive">', chartStart);
+    const chart = page.slice(chartStart, tableStart);
     expect(chart.indexOf("2026-09-22")).toBeGreaterThan(-1);
     expect(chart.indexOf("2026-09-22")).toBeLessThan(chart.indexOf("2026-09-24"));
+  });
+
+  it("limits the history table to the latest 10 points but keeps the chart full", () => {
+    const history = Array.from({ length: 12 }, (_, index) =>
+      point({ date: `2026-09-${String(12 - index).padStart(2, "0")}`, netAssetAmount: 100 + index }),
+    );
+    const page = accountPage(detail({ history })).value;
+
+    expect(parseDataPoints(page)).toHaveLength(12);
+    expect((page.match(/data-label="기준일"/g) ?? []).length).toBe(10);
   });
 
   it("embeds interactive chart points and controls", () => {
@@ -185,7 +196,8 @@ describe("history section", () => {
   it("falls back to the table when no net asset values exist", () => {
     const page = accountPage(detail({ history: [point({ date: "2026-09-24", netAssetAmount: null })] })).value;
     expect(page).not.toContain('<svg class="spark"');
-    expect(page).toContain("표로 보기");
+    expect(page).not.toContain("표로 보기");
+    expect(page).toContain("스냅샷 이력");
   });
 });
 
@@ -293,7 +305,7 @@ describe("accountsPage", () => {
 
   it("renders account detail tables with responsive labels", () => {
     const page = accountPage({
-      account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      account: { id: 3, provider: "kis", name: "Main", alias: null, accountNo: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [holding({ evalAmount: 750000 })],
       history: [{ date: "2026-09-24", securitiesEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000 }],
@@ -310,7 +322,7 @@ describe("accountsPage", () => {
 
   it("renders a composition bar and per-holding allocation for weights", () => {
     const page = accountPage({
-      account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      account: { id: 3, provider: "kis", name: "Main", alias: null, accountNo: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [
         holding({ symbol: "005930", productName: "삼성전자", evalAmount: 750000 }),
@@ -332,7 +344,7 @@ describe("accountsPage", () => {
 
   it("omits allocation visuals when there is no evaluated total", () => {
     const page = accountPage({
-      account: { id: 3, provider: "kis", name: "Main", alias: null, externalId: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
+      account: { id: 3, provider: "kis", name: "Main", alias: null, accountNo: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [holding({ evalAmount: null })],
       history: [],
@@ -460,7 +472,7 @@ describe("accountsPage", () => {
         provider: "kiwoom",
         name: "US",
         alias: null,
-        externalId: "00000000-01",
+        accountNo: "00000000-01",
         country: "US",
         currency: "USD",
         snapshotDate: "2026-09-23",

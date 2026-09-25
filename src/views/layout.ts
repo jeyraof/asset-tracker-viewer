@@ -12,7 +12,7 @@ export interface LayoutOptions {
 function nav(navExtra?: SafeHtml): SafeHtml {
   return html`<header>
   <h1><a href="/">Asset Tracker</a></h1>
-  <div class="nav-actions">${navExtra}<form method="post" action="/auth/logout"><button type="submit">로그아웃</button></form></div>
+  <div class="nav-actions">${navExtra}<a class="nav-button" href="/status">상태</a><form method="post" action="/auth/logout"><button type="submit">로그아웃</button></form></div>
 </header>`;
 }
 

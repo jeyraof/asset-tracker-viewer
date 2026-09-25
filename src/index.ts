@@ -25,6 +25,7 @@ import {
   listRecentTrades,
   listSnapshotHistory,
 } from "./db/portfolio";
+import { listFxFetches, listSyncErrors, listSyncRuns } from "./db/status";
 import type { Env } from "./env";
 import { base64urlEncode } from "./lib/base64url";
 import type { SafeHtml } from "./lib/html";
@@ -32,6 +33,7 @@ import { timingSafeEqualString } from "./lib/secure";
 import { loginPage, registerPage } from "./views/auth";
 import { notFoundPage } from "./views/error";
 import { accountPage, accountsPage, fxPage } from "./views/portfolio";
+import { statusPage } from "./views/status";
 
 const SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy":
@@ -320,6 +322,17 @@ export default {
         if (!(await currentSession(env, request))) return redirect("/login");
         const rates = await listFxRates(env.DB, "USD", "KRW");
         return htmlResponse(fxPage("USD", "KRW", rates));
+      }
+
+      if (method === "GET" && pathname === "/status") {
+        if (!(await currentSession(env, request))) return redirect("/login");
+        const [runs, errors, fxFetches, fx] = await Promise.all([
+          listSyncRuns(env.DB),
+          listSyncErrors(env.DB),
+          listFxFetches(env.DB),
+          getLatestFxRate(env.DB, "USD", "KRW"),
+        ]);
+        return htmlResponse(statusPage({ runs, errors, fxFetches, fx }));
       }
 
       const accountMatch = /^\/accounts\/(\d+)$/.exec(pathname);

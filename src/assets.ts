@@ -36,7 +36,8 @@ header {
 h1 { font-size: 1.25rem; margin: 0; }
 .nav-actions { display: flex; align-items: center; gap: 0.75rem; }
 .nav-fx { font-size: 0.85em; color: var(--muted); }
-h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+.nav-button { font-size: 0.85em; padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 6px; color: inherit; }
+h2 { font-size: 1rem; margin: 2rem 0 0.75rem; }
 h2 .muted { font-weight: 400; }
 a { color: inherit; text-decoration: none; }
 a.back { display: inline-block; padding: 0.2rem 0; color: var(--muted); }
@@ -121,7 +122,7 @@ details > summary {
   body { padding: 0.75rem; }
   header { flex-wrap: wrap; align-items: center; margin-bottom: 1rem; padding-bottom: 0.6rem; }
   h1 { font-size: 1.1rem; }
-  h2 { font-size: 0.95rem; margin: 1.1rem 0 0.4rem; }
+  h2 { font-size: 0.95rem; margin: 1.6rem 0 0.5rem; }
   button { padding: 0.5rem 0.85rem; }
   .card { width: 100%; min-width: 0; padding: 0.85rem; }
   .card dl { gap: 0.2rem 0.75rem; }
