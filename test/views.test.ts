@@ -393,6 +393,8 @@ describe("accountsPage", () => {
     const page = accountsPage([summary({ id: 3, netAssetAmount: 100 })], fx).value;
     expect(page).toContain('<div class="nav-actions">');
     expect(page).toContain('<a class="nav-button nav-fx" href="/fx">USD/KRW');
+    expect(page).toContain('<a class="nav-button" href="/status">상태</a>');
+    expect(page).toContain('<button type="submit" class="nav-button nav-primary">로그아웃</button>');
     expect(page).not.toContain('<p class="muted"><a href="/fx">');
     expect(page).not.toContain("passkey로 보호된");
   });
