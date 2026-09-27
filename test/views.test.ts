@@ -466,11 +466,23 @@ describe("accountsPage", () => {
     expect(page).toContain('<div class="nav-actions">');
     expect(page).toContain('<a class="nav-button nav-fx has-tip" href="/fx" data-tip="기준일 2026-09-24"');
     expect(page).toContain('<a class="nav-button" href="/status">상태</a>');
-    expect(page).toContain('<button type="submit" class="nav-button nav-primary">로그아웃</button>');
     expect(page).toContain('>USD/KRW ₩1,300</a>');
     expect(page).not.toContain('>USD/KRW ₩1,300 (2026-09-24)</a>');
     expect(page).not.toContain('<p class="muted"><a href="/fx">');
     expect(page).not.toContain("passkey로 보호된");
+  });
+
+  it("moves the logout button into the footer", () => {
+    const page = accountsPage([summary({ id: 3, netAssetAmount: 100 })], fx).value;
+    expect(page).toContain('<footer class="site-footer">');
+    expect(page).toContain('action="/auth/logout"');
+    expect(page).toContain('<button type="submit" class="nav-button nav-primary">로그아웃</button>');
+    expect(page).not.toContain('<div class="nav-actions"><form');
+  });
+
+  it("marks the fx page active in the header", () => {
+    const page = fxPage("USD", "KRW", [{ base: "USD", quote: "KRW", date: "2026-09-24", rate: 1300 }]).value;
+    expect(page).toContain('class="nav-button nav-fx has-tip nav-active" href="/fx"');
   });
 
   it("shows the fx link in the header on the account detail page", () => {
@@ -693,10 +705,18 @@ describe("allPage", () => {
     expect(page).toContain('role="img" aria-label="자산 지도"');
     expect(page).toContain('data-label="삼성전자"');
     expect(page).toContain('data-label="현금 KRW"');
-    expect(page).toContain("tm-up-3");
+    expect(page).toContain("tm-up-2");
     expect(page).toContain("tm-cash");
+    expect(page).toContain('data-pnl="+₩50,000"');
     expect((page.match(/class="tile /g) ?? []).length).toBe(2);
     expect(page).not.toContain("NaN");
+  });
+
+  it("renders a seven-cell profit/loss legend", () => {
+    const page = allPage({ summaries: [], holdings: [accountHolding()], fx: null }).value;
+    expect(page).toContain('<span class="map-cell tm-down-2">-3%</span>');
+    expect(page).toContain('<span class="map-cell tm-flat">0%</span>');
+    expect(page).toContain('<span class="map-cell tm-up-2">+3%</span>');
   });
 
   it("colors losses with the down (blue) tone", () => {
@@ -705,7 +725,7 @@ describe("allPage", () => {
       holdings: [accountHolding({ evalPflsAmount: -50000 })],
       fx: null,
     }).value;
-    expect(page).toContain('class="tile tm-down-3"');
+    expect(page).toContain('class="tile tm-down-2"');
     expect(page).not.toContain('class="tile tm-up');
   });
 

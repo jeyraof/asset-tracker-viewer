@@ -142,7 +142,6 @@ input {
 .treemap { display: block; width: 100%; height: auto; touch-action: manipulation; }
 .treemap .tile { cursor: pointer; outline: none; }
 .treemap .tile rect { stroke: var(--bg); stroke-width: 2; }
-.treemap .tile:focus rect, .treemap .tile.is-active rect { stroke: var(--fg); stroke-width: 3; }
 .treemap text { fill: #fff; font-weight: 600; pointer-events: none; }
 .map-tip {
   position: absolute;
@@ -163,18 +162,18 @@ input {
 .map-tip[hidden] { display: none; }
 .map-tip .tip-label { font-weight: 600; }
 .map-tip .tip-sub, .map-tip .tip-accounts { color: var(--muted); }
-.map-legend { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; font-size: 0.8em; }
-.swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; }
+.map-legend { display: flex; justify-content: flex-end; margin-top: 0.4rem; }
+.map-scale { display: inline-flex; border-radius: 4px; overflow: hidden; }
+.map-cell { padding: 0.2rem 0.45rem; font-size: 0.72rem; font-weight: 600; color: #fff; white-space: nowrap; }
+.site-footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
 .tm-up-0 { fill: #f87171; background-color: #f87171; }
 .tm-up-1 { fill: #ef4444; background-color: #ef4444; }
 .tm-up-2 { fill: #dc2626; background-color: #dc2626; }
-.tm-up-3 { fill: #b91c1c; background-color: #b91c1c; }
-.tm-up-4 { fill: #7f1d1d; background-color: #7f1d1d; }
+
 .tm-down-0 { fill: #60a5fa; background-color: #60a5fa; }
 .tm-down-1 { fill: #3b82f6; background-color: #3b82f6; }
 .tm-down-2 { fill: #2563eb; background-color: #2563eb; }
-.tm-down-3 { fill: #1d4ed8; background-color: #1d4ed8; }
-.tm-down-4 { fill: #1e3a8a; background-color: #1e3a8a; }
+
 .tm-flat { fill: #94a3b8; background-color: #94a3b8; }
 .tm-cash { fill: #64748b; background-color: #64748b; }
 ${WIDTH_CLASSES}
@@ -501,60 +500,61 @@ export const CLIENT_JS = `(function () {
         if (!tip || !label || !sub || !accounts || !tiles.length) return;
         let current = null;
 
-        function position(tile) {
+        function position(tile, clientX, clientY) {
           const rect = tile.querySelector("rect") || tile;
           const wrapRect = wrap.getBoundingClientRect();
           const tileRect = rect.getBoundingClientRect();
+          const pointX = clientX == null ? tileRect.left + tileRect.width / 2 : clientX;
+          const pointY = clientY == null ? tileRect.top + tileRect.height / 2 : clientY;
           tip.hidden = false;
           const half = tip.offsetWidth / 2;
           const tipHeight = tip.offsetHeight;
           const inset = 4;
-          let centerX = tileRect.left - wrapRect.left + tileRect.width / 2;
-          centerX = Math.max(half + inset, Math.min(centerX, wrapRect.width - half - inset));
-          const above = tileRect.top - wrapRect.top;
-          const below = tileRect.bottom - wrapRect.top;
-          if (above - tipHeight - 8 < 0) {
-            tip.classList.add("below");
-            tip.style.top = below + "px";
-          } else {
-            tip.classList.remove("below");
-            tip.style.top = above + "px";
-          }
-          tip.style.left = centerX + "px";
+          let left = pointX - wrapRect.left;
+          left = Math.max(half + inset, Math.min(left, wrapRect.width - half - inset));
+          tip.style.left = left + "px";
+          tip.style.top = pointY - wrapRect.top + "px";
+          if (pointY - tipHeight - 8 < 0) tip.classList.add("below");
+          else tip.classList.remove("below");
         }
 
-        function show(tile) {
+        function show(tile, clientX, clientY) {
           current = tile;
           label.textContent = tile.getAttribute("data-label") || "";
-          sub.textContent = (tile.getAttribute("data-value") || "") + " · " + (tile.getAttribute("data-rate") || "-");
+          const parts = [];
+          const value = tile.getAttribute("data-value");
+          const pnl = tile.getAttribute("data-pnl");
+          const rate = tile.getAttribute("data-rate");
+          if (value) parts.push(value);
+          if (pnl && pnl !== "-") parts.push(pnl);
+          if (rate && rate !== "-") parts.push(rate);
+          sub.textContent = parts.join(" · ");
           accounts.textContent = tile.getAttribute("data-accounts") || "";
-          const previous = wrap.querySelector(".tile.is-active");
-          if (previous) previous.classList.remove("is-active");
-          tile.classList.add("is-active");
-          position(tile);
+          position(tile, clientX, clientY);
         }
 
         function hide() {
           current = null;
           tip.hidden = true;
-          const active = wrap.querySelector(".tile.is-active");
-          if (active) active.classList.remove("is-active");
         }
 
         for (let i = 0; i < tiles.length; i += 1) {
           (function (tile) {
             tile.addEventListener("pointerenter", function (event) {
-              if (event.pointerType === "mouse") show(tile);
+              if (event.pointerType === "mouse") show(tile, event.clientX, event.clientY);
             });
-            tile.addEventListener("pointerdown", function () {
+            tile.addEventListener("pointerdown", function (event) {
               if (current === tile && !tip.hidden) hide();
-              else show(tile);
+              else show(tile, event.clientX, event.clientY);
             });
             tile.addEventListener("focus", function () { show(tile); });
             tile.addEventListener("blur", function () { hide(); });
           })(tiles[i]);
         }
 
+        wrap.addEventListener("pointermove", function (event) {
+          if (current && event.pointerType === "mouse") position(current, event.clientX, event.clientY);
+        });
         wrap.addEventListener("pointerdown", function (event) {
           const target = event.target;
           if (!target || !target.closest || !target.closest(".tile")) hide();

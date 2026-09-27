@@ -84,8 +84,9 @@ describe("statusPage", () => {
     expect(page).toContain("11.0s");
     expect(page).toContain("boom");
     expect(page).not.toContain("환율 수집");
-    expect(page).toContain('<a class="nav-button" href="/status">상태</a>');
+    expect(page).toContain('<a class="nav-button nav-active" href="/status">상태</a>');
     expect(page).toContain('<a class="nav-button nav-fx has-tip" href="/fx"');
+    expect(page).not.toContain('nav-button nav-fx has-tip nav-active');
   });
 
   it("shows empty states", () => {

@@ -96,5 +96,5 @@ ${runs.length === 0 ? html`<p class="muted">수집 기록이 없습니다.</p>` 
 <h2>최근 오류</h2>
 ${errors.length === 0 ? html`<p class="muted">오류 없음</p>` : errorsTable(errors)}`;
 
-  return layout({ title: "상태 · Asset Tracker", showNav: true, navExtra: fxLink(fx), body });
+  return layout({ title: "상태 · Asset Tracker", page: "status", showNav: true, navExtra: fxLink(fx), body });
 }

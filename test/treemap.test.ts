@@ -86,17 +86,18 @@ describe("pnlTone", () => {
     expect(pnlTone(Number.NaN)).toEqual({ dir: "flat", level: 0 });
   });
 
-  it("buckets gains by magnitude", () => {
-    expect(pnlTone(0.5)).toEqual({ dir: "up", level: 0 });
-    expect(pnlTone(2)).toEqual({ dir: "up", level: 1 });
-    expect(pnlTone(4)).toEqual({ dir: "up", level: 2 });
-    expect(pnlTone(7.14)).toEqual({ dir: "up", level: 3 });
-    expect(pnlTone(25)).toEqual({ dir: "up", level: 4 });
+  it("buckets gains by magnitude (1/2/3% steps)", () => {
+    expect(pnlTone(0.5)).toEqual({ dir: "flat", level: 0 });
+    expect(pnlTone(1.5)).toEqual({ dir: "up", level: 0 });
+    expect(pnlTone(2.5)).toEqual({ dir: "up", level: 1 });
+    expect(pnlTone(7.14)).toEqual({ dir: "up", level: 2 });
+    expect(pnlTone(25)).toEqual({ dir: "up", level: 2 });
   });
 
   it("buckets losses by magnitude with a down direction", () => {
-    expect(pnlTone(-0.5)).toEqual({ dir: "down", level: 0 });
-    expect(pnlTone(-7.14)).toEqual({ dir: "down", level: 3 });
-    expect(pnlTone(-25)).toEqual({ dir: "down", level: 4 });
+    expect(pnlTone(-0.5)).toEqual({ dir: "flat", level: 0 });
+    expect(pnlTone(-1.5)).toEqual({ dir: "down", level: 0 });
+    expect(pnlTone(-7.14)).toEqual({ dir: "down", level: 2 });
+    expect(pnlTone(-25)).toEqual({ dir: "down", level: 2 });
   });
 });

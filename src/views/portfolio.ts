@@ -75,11 +75,11 @@ function byNetDesc(fx: FxRate | null) {
 }
 
 /** USD/KRW link shown in the header, to the left of the logout button. */
-export function fxLink(fx: FxRate | null): SafeHtml {
+export function fxLink(fx: FxRate | null, active = false): SafeHtml {
   if (!fx) return html``;
   const date = formatDate(fx.date);
   const rate = formatMoney(fx.rate, "KRW");
-  return html`<a class="nav-button nav-fx has-tip" href="/fx" data-tip="기준일 ${date}" aria-label="USD/KRW ${rate} (${date})">USD/KRW ${rate}</a>`;
+  return html`<a class="nav-button nav-fx has-tip${active ? " nav-active" : ""}" href="/fx" data-tip="기준일 ${date}" aria-label="USD/KRW ${rate} (${date})">USD/KRW ${rate}</a>`;
 }
 
 function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal = false): SafeHtml {
@@ -249,9 +249,9 @@ const MAP_HEIGHT = 640;
 
 interface MapTile {
   label: string;
-  name: string | null;
   meta: string;
   value: number;
+  pnl: number | null;
   rate: number | null;
   tone: string;
 }
@@ -274,10 +274,10 @@ function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRa
     const value = krwAmount(holding.evalAmount, holding.currency, fx);
     if (value <= 0) continue;
     tiles.push({
-      label: holding.symbol,
-      name: holding.productName,
+      label: holding.productName ?? holding.symbol,
       meta: mergedAccountLabel(holding.accounts),
       value,
+      pnl: krwAmount(holding.evalPflsAmount, holding.currency, fx),
       rate: holding.evalPflsRate,
       tone: toneClass(holding.evalPflsRate),
     });
@@ -293,9 +293,9 @@ function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRa
     if (value <= 0) continue;
     tiles.push({
       label: `현금 ${currency}`,
-      name: null,
       meta: cashAccounts.map(accountDisplayLabel).join(", "),
       value,
+      pnl: null,
       rate: null,
       tone: "tm-cash",
     });
@@ -311,17 +311,21 @@ function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRa
     if (!tile) return html``;
     const rateText = tile.rate != null ? formatPercent(tile.rate) : "";
     const valueText = formatMoney(tile.value, "KRW");
-    const title = `${tile.name ?? tile.label} ${valueText}${rateText ? ` ${rateText}` : ""}${tile.meta ? ` · ${tile.meta}` : ""}`;
+    const pnlText = tile.pnl != null ? formatSignedMoney(tile.pnl, "KRW") : "";
+    const title = `${tile.label} ${valueText}${pnlText ? ` ${pnlText}` : ""}${rateText ? ` ${rateText}` : ""}${tile.meta ? ` · ${tile.meta}` : ""}`;
     const minDimension = Math.min(rect.width, rect.height);
     const codeSize = Math.max(9, Math.min(30, Math.round(minDimension * 0.22)));
     const centerX = Math.round((rect.x + rect.width / 2) * 100) / 100;
     const centerY = Math.round((rect.y + rect.height / 2) * 100) / 100;
     const showCode = rect.width >= 30 && rect.height >= 18;
     const showRate = rateText !== "" && rect.width >= 46 && rect.height >= 40;
-    return html`<g class="tile ${tile.tone}" tabindex="0" data-label="${tile.name ?? tile.label}" data-value="${valueText}" data-rate="${rateText || "-"}" data-accounts="${tile.meta || "-"}">
+    const labelChars = Array.from(tile.label);
+    const maxChars = Math.max(3, Math.floor(rect.width / (codeSize * 0.62)));
+    const shownLabel = labelChars.length > maxChars ? `${labelChars.slice(0, maxChars - 1).join("")}…` : tile.label;
+    return html`<g class="tile ${tile.tone}" tabindex="0" data-label="${tile.label}" data-value="${valueText}" data-pnl="${pnlText || "-"}" data-rate="${rateText || "-"}" data-accounts="${tile.meta || "-"}">
   <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>
   <title>${title}</title>
-  ${showCode ? html`<text x="${centerX}" y="${showRate ? centerY - codeSize * 0.5 : centerY}" text-anchor="middle" dominant-baseline="middle" font-size="${codeSize}">${tile.label}</text>` : html``}
+  ${showCode ? html`<text x="${centerX}" y="${showRate ? centerY - codeSize * 0.5 : centerY}" text-anchor="middle" dominant-baseline="middle" font-size="${codeSize}">${shownLabel}</text>` : html``}
   ${showRate ? html`<text x="${centerX}" y="${centerY + codeSize * 0.6}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8, Math.round(codeSize * 0.6))}">${rateText}</text>` : html``}
 </g>`;
   });
@@ -335,7 +339,7 @@ function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRa
     <div class="tip-sub"></div>
     <div class="tip-accounts"></div>
   </div>
-  <figcaption class="map-legend muted"><span class="swatch tm-down-4"></span>하락 <span class="swatch tm-flat"></span>보합 <span class="swatch tm-up-4"></span>상승</figcaption>
+  <figcaption class="map-legend"><span class="map-scale"><span class="map-cell tm-down-2">-3%</span><span class="map-cell tm-down-1">-2%</span><span class="map-cell tm-down-0">-1%</span><span class="map-cell tm-flat">0%</span><span class="map-cell tm-up-0">+1%</span><span class="map-cell tm-up-1">+2%</span><span class="map-cell tm-up-2">+3%</span></span></figcaption>
 </figure>`;
 }
 
@@ -620,5 +624,5 @@ ${trendChart(data, {
 })}
 ${rates.length > 0 ? fxTable(rates) : html``}`;
 
-  return layout({ title: `${base}/${quote} 환율 · Asset Tracker`, showNav: true, navExtra: fxLink(latest), body });
+  return layout({ title: `${base}/${quote} 환율 · Asset Tracker`, page: "fx", showNav: true, navExtra: fxLink(latest, true), body });
 }

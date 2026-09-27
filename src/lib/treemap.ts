@@ -93,13 +93,16 @@ export function squarify(values: readonly number[], width: number, height: numbe
 
 export interface PnlTone {
   dir: "up" | "down" | "flat";
-  level: 0 | 1 | 2 | 3 | 4;
+  level: 0 | 1 | 2;
 }
 
-/** Buckets a profit/loss rate into a direction and an intensity level (0..4). */
+/**
+ * Buckets a profit/loss rate into a direction and an intensity level (0..2),
+ * matching the seven-cell ±3% legend: |rate|<1 is flat, then 1/2/3% steps.
+ */
 export function pnlTone(rate: number | null | undefined): PnlTone {
-  if (rate == null || !Number.isFinite(rate) || rate === 0) return { dir: "flat", level: 0 };
+  if (rate == null || !Number.isFinite(rate) || Math.abs(rate) < 1) return { dir: "flat", level: 0 };
   const magnitude = Math.abs(rate);
-  const level: PnlTone["level"] = magnitude < 1 ? 0 : magnitude < 3 ? 1 : magnitude < 5 ? 2 : magnitude < 10 ? 3 : 4;
+  const level: PnlTone["level"] = magnitude < 2 ? 0 : magnitude < 3 ? 1 : 2;
   return { dir: rate > 0 ? "up" : "down", level };
 }
