@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pnlTone, squarify, type TreemapRect } from "../src/lib/treemap";
+import { fitLabel, pnlTone, squarify, type TreemapRect } from "../src/lib/treemap";
 
 const WIDTH = 100;
 const HEIGHT = 60;
@@ -76,6 +76,22 @@ describe("squarify", () => {
     expect(rects).toHaveLength(40);
     const total = rects.reduce((sum, rect) => sum + area(rect), 0);
     expect(total).toBeCloseTo(WIDTH * HEIGHT, 0);
+  });
+});
+
+describe("fitLabel", () => {
+  it("keeps a label that fits", () => {
+    expect(fitLabel("삼성전자", 500, 20)).toBe("삼성전자");
+  });
+
+  it("adds an ellipsis when the label is too wide", () => {
+    const fitted = fitLabel("TIGER TDF2045 적격", 100, 30);
+    expect(fitted.endsWith("…")).toBe(true);
+    expect(fitted.length).toBeLessThan("TIGER TDF2045 적격".length + 1);
+  });
+
+  it("returns only an ellipsis when nothing fits", () => {
+    expect(fitLabel("TIGER", 1, 30)).toBe("…");
   });
 });
 

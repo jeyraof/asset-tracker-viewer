@@ -11,7 +11,7 @@ import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuant
 import { html, type SafeHtml } from "../lib/html";
 import { aggregateHoldings, type MergedHolding } from "../lib/aggregate";
 import { deposit, evalAmount, netAsset } from "../lib/amounts";
-import { pnlTone, squarify } from "../lib/treemap";
+import { fitLabel, pnlTone, squarify } from "../lib/treemap";
 import { areaPoints, linePoints, plotCoords, serializeChartPoints } from "../lib/chartData";
 import { countryFlag, providerName } from "../lib/labels";
 import { layout } from "./layout";
@@ -170,15 +170,11 @@ function allSummary(summaries: AccountSummary[], fx: FxRate | null): SafeHtml {
   const evaluation = summaries.reduce((sum, account) => sum + krwAmount(evalAmount(account), account.currency, fx), 0);
   const cash = summaries.reduce((sum, account) => sum + krwAmount(deposit(account), account.currency, fx), 0);
 
-  return html`<div class="cards">
-  <div class="card">
-    <dl>
-      <dt>순자산</dt><dd>${formatMoney(net, "KRW")}</dd>
-      <dt>평가금액</dt><dd>${formatMoney(evaluation, "KRW")}</dd>
-      <dt>예수금</dt><dd>${formatMoney(cash, "KRW")}</dd>
-      <dt>계좌</dt><dd>${summaries.length}</dd>
-    </dl>
-  </div>
+  return html`<div class="stats">
+  <div class="stat"><span class="stat-label">순자산</span><span class="stat-value">${formatMoney(net, "KRW")}</span></div>
+  <div class="stat"><span class="stat-label">평가금액</span><span class="stat-value">${formatMoney(evaluation, "KRW")}</span></div>
+  <div class="stat"><span class="stat-label">예수금</span><span class="stat-value">${formatMoney(cash, "KRW")}</span></div>
+  <div class="stat"><span class="stat-label">계좌</span><span class="stat-value">${summaries.length}</span></div>
 </div>`;
 }
 
@@ -305,6 +301,13 @@ function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRa
 
   tiles.sort((a, b) => b.value - a.value);
   const rects = squarify(tiles.map((tile) => tile.value), MAP_WIDTH, MAP_HEIGHT);
+  const totalValue = tiles.reduce((sum, tile) => sum + tile.value, 0);
+
+  const clipId = (index: number) => `map-clip-${index}`;
+  const defs = rects.map(
+    (rect, index) =>
+      html`<clipPath id="${clipId(index)}"><rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect></clipPath>`,
+  );
 
   const cells = rects.map((rect, index) => {
     const tile = tiles[index];
@@ -312,32 +315,39 @@ function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRa
     const rateText = tile.rate != null ? formatPercent(tile.rate) : "";
     const valueText = formatMoney(tile.value, "KRW");
     const pnlText = tile.pnl != null ? formatSignedMoney(tile.pnl, "KRW") : "";
+    const weightText = totalValue > 0 ? formatPercentPlain((tile.value / totalValue) * 100) : "-";
     const title = `${tile.label} ${valueText}${pnlText ? ` ${pnlText}` : ""}${rateText ? ` ${rateText}` : ""}${tile.meta ? ` · ${tile.meta}` : ""}`;
     const minDimension = Math.min(rect.width, rect.height);
     const codeSize = Math.max(9, Math.min(30, Math.round(minDimension * 0.22)));
     const centerX = Math.round((rect.x + rect.width / 2) * 100) / 100;
     const centerY = Math.round((rect.y + rect.height / 2) * 100) / 100;
-    const showCode = rect.width >= 30 && rect.height >= 18;
+    const shownLabel = fitLabel(tile.label, rect.width * 0.92, codeSize);
+    const showCode = rect.width >= 30 && rect.height >= 18 && shownLabel !== "…";
     const showRate = rateText !== "" && rect.width >= 46 && rect.height >= 40;
-    const labelChars = Array.from(tile.label);
-    const maxChars = Math.max(3, Math.floor(rect.width / (codeSize * 0.62)));
-    const shownLabel = labelChars.length > maxChars ? `${labelChars.slice(0, maxChars - 1).join("")}…` : tile.label;
-    return html`<g class="tile ${tile.tone}" tabindex="0" data-label="${tile.label}" data-value="${valueText}" data-pnl="${pnlText || "-"}" data-rate="${rateText || "-"}" data-accounts="${tile.meta || "-"}">
+    return html`<g class="tile ${tile.tone}" tabindex="0" data-label="${tile.label}" data-value="${valueText}" data-pnl="${pnlText || "-"}" data-rate="${rateText || "-"}" data-weight="${weightText}" data-accounts="${tile.meta || "-"}">
   <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>
   <title>${title}</title>
-  ${showCode ? html`<text x="${centerX}" y="${showRate ? centerY - codeSize * 0.5 : centerY}" text-anchor="middle" dominant-baseline="middle" font-size="${codeSize}">${shownLabel}</text>` : html``}
-  ${showRate ? html`<text x="${centerX}" y="${centerY + codeSize * 0.6}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8, Math.round(codeSize * 0.6))}">${rateText}</text>` : html``}
+  <g clip-path="url(#${clipId(index)})">
+    ${showCode ? html`<text x="${centerX}" y="${showRate ? centerY - codeSize * 0.5 : centerY}" text-anchor="middle" dominant-baseline="middle" font-size="${codeSize}">${shownLabel}</text>` : html``}
+    ${showRate ? html`<text x="${centerX}" y="${centerY + codeSize * 0.6}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8, Math.round(codeSize * 0.6))}">${rateText}</text>` : html``}
+  </g>
 </g>`;
   });
 
   return html`<figure class="treemap-wrap">
   <svg class="treemap" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}" role="img" aria-label="자산 지도">
+    <defs>${defs}</defs>
     ${cells}
   </svg>
   <div class="map-tip" hidden>
     <div class="tip-label"></div>
-    <div class="tip-sub"></div>
-    <div class="tip-accounts"></div>
+    <dl class="tip-rows">
+      <div class="tip-row"><dt>평가금액</dt><dd class="tip-value"></dd></div>
+      <div class="tip-row"><dt>평가손익</dt><dd class="tip-pnl"></dd></div>
+      <div class="tip-row"><dt>수익률</dt><dd class="tip-rate"></dd></div>
+      <div class="tip-row"><dt>비중</dt><dd class="tip-weight"></dd></div>
+      <div class="tip-row"><dt>계좌</dt><dd class="tip-accounts"></dd></div>
+    </dl>
   </div>
   <figcaption class="map-legend"><span class="map-scale"><span class="map-cell tm-down-2">-3%</span><span class="map-cell tm-down-1">-2%</span><span class="map-cell tm-down-0">-1%</span><span class="map-cell tm-flat">0%</span><span class="map-cell tm-up-0">+1%</span><span class="map-cell tm-up-1">+2%</span><span class="map-cell tm-up-2">+3%</span></span></figcaption>
 </figure>`;

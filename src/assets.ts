@@ -83,6 +83,10 @@ th:first-child, td:first-child { text-align: left; }
 th { color: var(--muted); font-weight: 500; }
 .num { font-variant-numeric: tabular-nums; }
 tfoot td { font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-top: 0.5rem; }
+.stat { border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.stat-label { color: var(--muted); font-size: 0.85em; }
+.stat-value { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cards { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; }
 .card { border: 1px solid var(--border); border-radius: 8px; padding: 1rem; min-width: 240px; }
 .card dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 1rem; }
@@ -160,8 +164,12 @@ input {
 }
 .map-tip.below { transform: translate(-50%, 8px); }
 .map-tip[hidden] { display: none; }
-.map-tip .tip-label { font-weight: 600; }
-.map-tip .tip-sub, .map-tip .tip-accounts { color: var(--muted); }
+.map-tip .tip-label { font-weight: 600; margin-bottom: 0.3rem; }
+.map-tip .tip-rows { margin: 0; display: grid; grid-template-columns: auto auto; gap: 0.15rem 0.75rem; }
+.map-tip .tip-row { display: contents; }
+.map-tip dt { color: var(--muted); }
+.map-tip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.map-tip .tip-accounts { max-width: 16rem; white-space: normal; }
 .map-legend { display: flex; justify-content: flex-end; margin-top: 0.4rem; }
 .map-scale { display: inline-flex; border-radius: 4px; overflow: hidden; }
 .map-cell { padding: 0.2rem 0.45rem; font-size: 0.72rem; font-weight: 600; color: #fff; white-space: nowrap; }
@@ -194,6 +202,7 @@ details > summary {
   button { padding: 0.5rem 0.85rem; }
   .card { width: 100%; min-width: 0; padding: 0.85rem; }
   .card dl { gap: 0.2rem 0.75rem; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
 
   table.responsive thead { display: none; }
   table.responsive,
@@ -494,10 +503,13 @@ export const CLIENT_JS = `(function () {
       (function (wrap) {
         const tip = wrap.querySelector(".map-tip");
         const label = tip && tip.querySelector(".tip-label");
-        const sub = tip && tip.querySelector(".tip-sub");
+        const value = tip && tip.querySelector(".tip-value");
+        const pnl = tip && tip.querySelector(".tip-pnl");
+        const rate = tip && tip.querySelector(".tip-rate");
+        const weight = tip && tip.querySelector(".tip-weight");
         const accounts = tip && tip.querySelector(".tip-accounts");
         const tiles = wrap.querySelectorAll(".tile");
-        if (!tip || !label || !sub || !accounts || !tiles.length) return;
+        if (!tip || !label || !value || !pnl || !rate || !weight || !accounts || !tiles.length) return;
         let current = null;
 
         function position(tile, clientX, clientY) {
@@ -520,16 +532,12 @@ export const CLIENT_JS = `(function () {
 
         function show(tile, clientX, clientY) {
           current = tile;
-          label.textContent = tile.getAttribute("data-label") || "";
-          const parts = [];
-          const value = tile.getAttribute("data-value");
-          const pnl = tile.getAttribute("data-pnl");
-          const rate = tile.getAttribute("data-rate");
-          if (value) parts.push(value);
-          if (pnl && pnl !== "-") parts.push(pnl);
-          if (rate && rate !== "-") parts.push(rate);
-          sub.textContent = parts.join(" · ");
-          accounts.textContent = tile.getAttribute("data-accounts") || "";
+          label.textContent = tile.getAttribute("data-label") || "-";
+          value.textContent = tile.getAttribute("data-value") || "-";
+          pnl.textContent = tile.getAttribute("data-pnl") || "-";
+          rate.textContent = tile.getAttribute("data-rate") || "-";
+          weight.textContent = tile.getAttribute("data-weight") || "-";
+          accounts.textContent = tile.getAttribute("data-accounts") || "-";
           position(tile, clientX, clientY);
         }
 

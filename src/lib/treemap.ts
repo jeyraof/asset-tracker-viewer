@@ -91,6 +91,29 @@ export function squarify(values: readonly number[], width: number, height: numbe
   return rects;
 }
 
+/** Rough advance width of a character in em units, for label fitting. */
+function charWidth(char: string): number {
+  const code = char.codePointAt(0) ?? 0;
+  if ((code >= 0xac00 && code <= 0xd7a3) || (code >= 0x3131 && code <= 0x318e)) return 1;
+  if (char === " ") return 0.32;
+  if (char >= "A" && char <= "Z") return 0.66;
+  if (char >= "0" && char <= "9") return 0.58;
+  return 0.55;
+}
+
+/** Truncates a label with an ellipsis so it stays within `maxWidth` at `fontSize`. */
+export function fitLabel(label: string, maxWidth: number, fontSize: number): string {
+  const chars = Array.from(label);
+  let width = 0;
+  for (let index = 0; index < chars.length; index += 1) {
+    width += charWidth(chars[index] ?? "") * fontSize;
+    if (width > maxWidth) {
+      return index === 0 ? "…" : `${chars.slice(0, index).join("")}…`;
+    }
+  }
+  return label;
+}
+
 export interface PnlTone {
   dir: "up" | "down" | "flat";
   level: 0 | 1 | 2;

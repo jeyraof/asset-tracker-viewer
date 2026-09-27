@@ -655,6 +655,9 @@ describe("allPage", () => {
     expect(page).toContain("₩760,000");
     expect(page).toContain("예시 연금저축");
     expect(page).toContain("1 종목 · 1 계좌");
+    expect(page).toContain('<div class="stats">');
+    expect((page.match(/class="stat"/g) ?? []).length).toBe(4);
+    expect(page).toContain('<span class="stat-label">순자산</span>');
   });
 
   it("merges the same instrument held in several accounts into one row", () => {
@@ -708,8 +711,21 @@ describe("allPage", () => {
     expect(page).toContain("tm-up-2");
     expect(page).toContain("tm-cash");
     expect(page).toContain('data-pnl="+₩50,000"');
+    expect(page).toContain('data-weight="');
+    expect(page).toContain("<clipPath");
+    expect(page).toContain('clip-path="url(#map-clip-0)"');
     expect((page.match(/class="tile /g) ?? []).length).toBe(2);
     expect(page).not.toContain("NaN");
+  });
+
+  it("renders a structured map tooltip with weight and accounts", () => {
+    const page = allPage({ summaries: [], holdings: [accountHolding()], fx: null }).value;
+    expect(page).toContain('<div class="tip-label"></div>');
+    expect(page).toContain('<div class="tip-row"><dt>평가금액</dt><dd class="tip-value"></dd></div>');
+    expect(page).toContain('<div class="tip-row"><dt>평가손익</dt><dd class="tip-pnl"></dd></div>');
+    expect(page).toContain('<div class="tip-row"><dt>수익률</dt><dd class="tip-rate"></dd></div>');
+    expect(page).toContain('<div class="tip-row"><dt>비중</dt><dd class="tip-weight"></dd></div>');
+    expect(page).toContain('<div class="tip-row"><dt>계좌</dt><dd class="tip-accounts"></dd></div>');
   });
 
   it("renders a seven-cell profit/loss legend", () => {
