@@ -39,6 +39,34 @@ h1 { font-size: 1.25rem; margin: 0; }
 .nav-button.nav-fx { color: var(--muted); }
 .nav-button.nav-primary { background: var(--fg); color: var(--bg); }
 .nav-button.nav-active { border-color: var(--fg); font-weight: 600; }
+.nav-group { display: inline-flex; flex: 0 0 auto; }
+.nav-group .nav-button { border-radius: 0; }
+.nav-group .nav-button + .nav-button { margin-left: -1px; }
+.nav-group .nav-button:first-child { border-radius: 6px 0 0 6px; }
+.nav-group .nav-button:last-child { border-radius: 0 6px 6px 0; }
+.nav-group .nav-button.nav-active { position: relative; z-index: 1; }
+.has-tip { position: relative; cursor: help; }
+.has-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.has-tip:hover::after,
+.has-tip:focus-visible::after,
+.has-tip.open::after { opacity: 1; }
 h2 { font-size: 1rem; margin: 2rem 0 0.75rem; }
 h2 .muted { font-weight: 400; }
 a { color: inherit; text-decoration: none; }
@@ -110,6 +138,45 @@ input {
 .chart-tip .tip-value { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .chart-tip .tip-sub { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.treemap-wrap { position: relative; margin: 0.5rem 0 0; }
+.treemap { display: block; width: 100%; height: auto; touch-action: manipulation; }
+.treemap .tile { cursor: pointer; outline: none; }
+.treemap .tile rect { stroke: var(--bg); stroke-width: 2; }
+.treemap .tile:focus rect, .treemap .tile.is-active rect { stroke: var(--fg); stroke-width: 3; }
+.treemap text { fill: #fff; font-weight: 600; pointer-events: none; }
+.map-tip {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 8px));
+  width: max-content;
+  max-width: min(90%, 18rem);
+  padding: 0.45rem 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.map-tip.below { transform: translate(-50%, 8px); }
+.map-tip[hidden] { display: none; }
+.map-tip .tip-label { font-weight: 600; }
+.map-tip .tip-sub, .map-tip .tip-accounts { color: var(--muted); }
+.map-legend { display: flex; align-items: center; gap: 0.35rem; margin-top: 0.4rem; font-size: 0.8em; }
+.swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; }
+.tm-up-0 { fill: #f87171; background-color: #f87171; }
+.tm-up-1 { fill: #ef4444; background-color: #ef4444; }
+.tm-up-2 { fill: #dc2626; background-color: #dc2626; }
+.tm-up-3 { fill: #b91c1c; background-color: #b91c1c; }
+.tm-up-4 { fill: #7f1d1d; background-color: #7f1d1d; }
+.tm-down-0 { fill: #60a5fa; background-color: #60a5fa; }
+.tm-down-1 { fill: #3b82f6; background-color: #3b82f6; }
+.tm-down-2 { fill: #2563eb; background-color: #2563eb; }
+.tm-down-3 { fill: #1d4ed8; background-color: #1d4ed8; }
+.tm-down-4 { fill: #1e3a8a; background-color: #1e3a8a; }
+.tm-flat { fill: #94a3b8; background-color: #94a3b8; }
+.tm-cash { fill: #64748b; background-color: #64748b; }
 ${WIDTH_CLASSES}
 ${COLOR_CLASSES}
 details { margin-top: 0.5rem; }
@@ -409,11 +476,104 @@ export const CLIENT_JS = `(function () {
     for (let i = 0; i < charts.length; i += 1) enhanceChart(charts[i]);
   }
 
+  function enhanceTips() {
+    const tips = document.querySelectorAll(".has-tip");
+    for (let i = 0; i < tips.length; i += 1) {
+      (function (el) {
+        el.addEventListener("pointerdown", function () { el.classList.add("open"); });
+        el.addEventListener("pointerup", function () { el.classList.remove("open"); });
+        el.addEventListener("pointercancel", function () { el.classList.remove("open"); });
+        el.addEventListener("pointerleave", function () { el.classList.remove("open"); });
+        el.addEventListener("blur", function () { el.classList.remove("open"); });
+      })(tips[i]);
+    }
+  }
+
+  function enhanceTreemap() {
+    const wraps = document.querySelectorAll(".treemap-wrap");
+    for (let w = 0; w < wraps.length; w += 1) {
+      (function (wrap) {
+        const tip = wrap.querySelector(".map-tip");
+        const label = tip && tip.querySelector(".tip-label");
+        const sub = tip && tip.querySelector(".tip-sub");
+        const accounts = tip && tip.querySelector(".tip-accounts");
+        const tiles = wrap.querySelectorAll(".tile");
+        if (!tip || !label || !sub || !accounts || !tiles.length) return;
+        let current = null;
+
+        function position(tile) {
+          const rect = tile.querySelector("rect") || tile;
+          const wrapRect = wrap.getBoundingClientRect();
+          const tileRect = rect.getBoundingClientRect();
+          tip.hidden = false;
+          const half = tip.offsetWidth / 2;
+          const tipHeight = tip.offsetHeight;
+          const inset = 4;
+          let centerX = tileRect.left - wrapRect.left + tileRect.width / 2;
+          centerX = Math.max(half + inset, Math.min(centerX, wrapRect.width - half - inset));
+          const above = tileRect.top - wrapRect.top;
+          const below = tileRect.bottom - wrapRect.top;
+          if (above - tipHeight - 8 < 0) {
+            tip.classList.add("below");
+            tip.style.top = below + "px";
+          } else {
+            tip.classList.remove("below");
+            tip.style.top = above + "px";
+          }
+          tip.style.left = centerX + "px";
+        }
+
+        function show(tile) {
+          current = tile;
+          label.textContent = tile.getAttribute("data-label") || "";
+          sub.textContent = (tile.getAttribute("data-value") || "") + " · " + (tile.getAttribute("data-rate") || "-");
+          accounts.textContent = tile.getAttribute("data-accounts") || "";
+          const previous = wrap.querySelector(".tile.is-active");
+          if (previous) previous.classList.remove("is-active");
+          tile.classList.add("is-active");
+          position(tile);
+        }
+
+        function hide() {
+          current = null;
+          tip.hidden = true;
+          const active = wrap.querySelector(".tile.is-active");
+          if (active) active.classList.remove("is-active");
+        }
+
+        for (let i = 0; i < tiles.length; i += 1) {
+          (function (tile) {
+            tile.addEventListener("pointerenter", function (event) {
+              if (event.pointerType === "mouse") show(tile);
+            });
+            tile.addEventListener("pointerdown", function () {
+              if (current === tile && !tip.hidden) hide();
+              else show(tile);
+            });
+            tile.addEventListener("focus", function () { show(tile); });
+            tile.addEventListener("blur", function () { hide(); });
+          })(tiles[i]);
+        }
+
+        wrap.addEventListener("pointerdown", function (event) {
+          const target = event.target;
+          if (!target || !target.closest || !target.closest(".tile")) hide();
+        });
+        wrap.addEventListener("pointerleave", function () { hide(); });
+        window.addEventListener("resize", function () {
+          if (current) position(current);
+        });
+      })(wraps[w]);
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     const page = document.body.dataset.page;
     const loginButton = document.getElementById("login-button");
     const registerButton = document.getElementById("register-button");
     enhanceCharts();
+    enhanceTips();
+    enhanceTreemap();
 
     if (page === "login" && loginButton) {
       loginButton.addEventListener("click", async function () {

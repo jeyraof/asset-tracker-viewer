@@ -85,7 +85,7 @@ describe("statusPage", () => {
     expect(page).toContain("boom");
     expect(page).not.toContain("환율 수집");
     expect(page).toContain('<a class="nav-button" href="/status">상태</a>');
-    expect(page).toContain('<a class="nav-button nav-fx" href="/fx">USD/KRW');
+    expect(page).toContain('<a class="nav-button nav-fx has-tip" href="/fx"');
   });
 
   it("shows empty states", () => {

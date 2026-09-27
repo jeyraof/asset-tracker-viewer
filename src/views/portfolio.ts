@@ -11,6 +11,7 @@ import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuant
 import { html, type SafeHtml } from "../lib/html";
 import { aggregateHoldings, type MergedHolding } from "../lib/aggregate";
 import { deposit, evalAmount, netAsset } from "../lib/amounts";
+import { pnlTone, squarify } from "../lib/treemap";
 import { areaPoints, linePoints, plotCoords, serializeChartPoints } from "../lib/chartData";
 import { countryFlag, providerName } from "../lib/labels";
 import { layout } from "./layout";
@@ -75,9 +76,10 @@ function byNetDesc(fx: FxRate | null) {
 
 /** USD/KRW link shown in the header, to the left of the logout button. */
 export function fxLink(fx: FxRate | null): SafeHtml {
-  return fx
-    ? html`<a class="nav-button nav-fx" href="/fx">USD/KRW ${formatMoney(fx.rate, "KRW")} (${formatDate(fx.date)})</a>`
-    : html``;
+  if (!fx) return html``;
+  const date = formatDate(fx.date);
+  const rate = formatMoney(fx.rate, "KRW");
+  return html`<a class="nav-button nav-fx has-tip" href="/fx" data-tip="기준일 ${date}" aria-label="USD/KRW ${rate} (${date})">USD/KRW ${rate}</a>`;
 }
 
 function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal = false): SafeHtml {
@@ -242,6 +244,101 @@ function allHoldingsTable(holdings: MergedHolding[], fx: FxRate | null): SafeHtm
 </table>`;
 }
 
+const MAP_WIDTH = 1000;
+const MAP_HEIGHT = 640;
+
+interface MapTile {
+  label: string;
+  name: string | null;
+  meta: string;
+  value: number;
+  rate: number | null;
+  tone: string;
+}
+
+function toneClass(rate: number | null): string {
+  const tone = pnlTone(rate);
+  return tone.dir === "flat" ? "tm-flat" : `tm-${tone.dir}-${tone.level}`;
+}
+
+function accountDisplayLabel(account: AccountSummary): string {
+  return account.alias?.trim() || account.name?.trim() || providerName(account.provider);
+}
+
+/** Finviz-style treemap of securities (by KRW evaluation) plus cash per currency. */
+function assetMap(merged: MergedHolding[], summaries: AccountSummary[], fx: FxRate | null): SafeHtml {
+  const tiles: MapTile[] = [];
+
+  for (const holding of merged) {
+    if (holding.currency !== "KRW" && fx === null) continue;
+    const value = krwAmount(holding.evalAmount, holding.currency, fx);
+    if (value <= 0) continue;
+    tiles.push({
+      label: holding.symbol,
+      name: holding.productName,
+      meta: mergedAccountLabel(holding.accounts),
+      value,
+      rate: holding.evalPflsRate,
+      tone: toneClass(holding.evalPflsRate),
+    });
+  }
+
+  for (const currency of ["KRW", "USD"]) {
+    if (currency !== "KRW" && fx === null) continue;
+    const cashAccounts = summaries.filter(
+      (account) => account.currency === currency && (deposit(account) ?? 0) > 0,
+    );
+    const cash = cashAccounts.reduce((sum, account) => sum + (deposit(account) ?? 0), 0);
+    const value = krwAmount(cash, currency, fx);
+    if (value <= 0) continue;
+    tiles.push({
+      label: `현금 ${currency}`,
+      name: null,
+      meta: cashAccounts.map(accountDisplayLabel).join(", "),
+      value,
+      rate: null,
+      tone: "tm-cash",
+    });
+  }
+
+  if (tiles.length === 0) return html`<p class="muted">표시할 자산이 없습니다.</p>`;
+
+  tiles.sort((a, b) => b.value - a.value);
+  const rects = squarify(tiles.map((tile) => tile.value), MAP_WIDTH, MAP_HEIGHT);
+
+  const cells = rects.map((rect, index) => {
+    const tile = tiles[index];
+    if (!tile) return html``;
+    const rateText = tile.rate != null ? formatPercent(tile.rate) : "";
+    const valueText = formatMoney(tile.value, "KRW");
+    const title = `${tile.name ?? tile.label} ${valueText}${rateText ? ` ${rateText}` : ""}${tile.meta ? ` · ${tile.meta}` : ""}`;
+    const minDimension = Math.min(rect.width, rect.height);
+    const codeSize = Math.max(9, Math.min(30, Math.round(minDimension * 0.22)));
+    const centerX = Math.round((rect.x + rect.width / 2) * 100) / 100;
+    const centerY = Math.round((rect.y + rect.height / 2) * 100) / 100;
+    const showCode = rect.width >= 30 && rect.height >= 18;
+    const showRate = rateText !== "" && rect.width >= 46 && rect.height >= 40;
+    return html`<g class="tile ${tile.tone}" tabindex="0" data-label="${tile.name ?? tile.label}" data-value="${valueText}" data-rate="${rateText || "-"}" data-accounts="${tile.meta || "-"}">
+  <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}"></rect>
+  <title>${title}</title>
+  ${showCode ? html`<text x="${centerX}" y="${showRate ? centerY - codeSize * 0.5 : centerY}" text-anchor="middle" dominant-baseline="middle" font-size="${codeSize}">${tile.label}</text>` : html``}
+  ${showRate ? html`<text x="${centerX}" y="${centerY + codeSize * 0.6}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(8, Math.round(codeSize * 0.6))}">${rateText}</text>` : html``}
+</g>`;
+  });
+
+  return html`<figure class="treemap-wrap">
+  <svg class="treemap" viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}" role="img" aria-label="자산 지도">
+    ${cells}
+  </svg>
+  <div class="map-tip" hidden>
+    <div class="tip-label"></div>
+    <div class="tip-sub"></div>
+    <div class="tip-accounts"></div>
+  </div>
+  <figcaption class="map-legend muted"><span class="swatch tm-down-4"></span>하락 <span class="swatch tm-flat"></span>보합 <span class="swatch tm-up-4"></span>상승</figcaption>
+</figure>`;
+}
+
 export interface AllPageInput {
   summaries: AccountSummary[];
   holdings: AccountHolding[];
@@ -255,7 +352,9 @@ export function allPage(input: AllPageInput): SafeHtml {
   const body = html`<h2>모아보기 <span class="muted">${merged.length} 종목 · ${summaries.length} 계좌</span></h2>
 ${allSummary(summaries, fx)}
 <h2>보유 종목</h2>
-${allHoldingsTable(merged, fx)}`;
+${allHoldingsTable(merged, fx)}
+<h2>자산 지도</h2>
+${assetMap(merged, summaries, fx)}`;
 
   return layout({ title: "모아보기 · Asset Tracker", page: "all", showNav: true, navExtra: fxLink(fx), body });
 }

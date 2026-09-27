@@ -13,7 +13,7 @@ function nav(page: string | undefined, navExtra?: SafeHtml): SafeHtml {
   const active = (name: string) => (page === name ? " nav-active" : "");
   return html`<header>
   <h1><a href="/">Asset Tracker</a></h1>
-  <div class="nav-actions">${navExtra}<a class="nav-button${active("accounts")}" href="/">계좌별</a><a class="nav-button${active("all")}" href="/all">모아보기</a><a class="nav-button" href="/status">상태</a><form method="post" action="/auth/logout"><button type="submit" class="nav-button nav-primary">로그아웃</button></form></div>
+  <div class="nav-actions">${navExtra}<span class="nav-group"><a class="nav-button${active("accounts")}" href="/">계좌별</a><a class="nav-button${active("all")}" href="/all">모아보기</a></span><a class="nav-button" href="/status">상태</a><form method="post" action="/auth/logout"><button type="submit" class="nav-button nav-primary">로그아웃</button></form></div>
 </header>`;
 }
 

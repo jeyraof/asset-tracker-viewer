@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import handler from "../src/index";
+import { CLIENT_JS, STYLES } from "../src/assets";
 import type { Env } from "../src/env";
 
 const env = {
@@ -32,6 +33,12 @@ describe("router", () => {
     const response = await fetch("/client.js");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/javascript");
+  });
+
+  it("ships a syntactically valid client script", () => {
+    expect(() => new Function(CLIENT_JS)).not.toThrow();
+    expect(CLIENT_JS).toContain("enhanceTreemap");
+    expect(STYLES).toContain(".nav-group");
   });
 
   it("redirects unauthenticated visitors to /login", async () => {

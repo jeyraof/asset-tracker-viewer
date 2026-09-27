@@ -464,16 +464,18 @@ describe("accountsPage", () => {
   it("links fx in the header and drops the passkey note", () => {
     const page = accountsPage([summary({ id: 3, netAssetAmount: 100 })], fx).value;
     expect(page).toContain('<div class="nav-actions">');
-    expect(page).toContain('<a class="nav-button nav-fx" href="/fx">USD/KRW');
+    expect(page).toContain('<a class="nav-button nav-fx has-tip" href="/fx" data-tip="기준일 2026-09-24"');
     expect(page).toContain('<a class="nav-button" href="/status">상태</a>');
     expect(page).toContain('<button type="submit" class="nav-button nav-primary">로그아웃</button>');
+    expect(page).toContain('>USD/KRW ₩1,300</a>');
+    expect(page).not.toContain('>USD/KRW ₩1,300 (2026-09-24)</a>');
     expect(page).not.toContain('<p class="muted"><a href="/fx">');
     expect(page).not.toContain("passkey로 보호된");
   });
 
   it("shows the fx link in the header on the account detail page", () => {
     const page = accountPage(detail({ fx })).value;
-    expect(page).toContain('<a class="nav-button nav-fx" href="/fx">USD/KRW');
+    expect(page).toContain('<a class="nav-button nav-fx has-tip" href="/fx" data-tip="기준일 2026-09-24"');
   });
 
   it("renders the fx history page with a chart and an expanded table", () => {
@@ -617,8 +619,9 @@ describe("layout", () => {
     expect(page).toContain('<link rel="manifest" href="/site.webmanifest">');
   });
 
-  it("marks the active nav view", () => {
+  it("marks the active nav view and groups the view toggles", () => {
     const page = allPage({ summaries: [], holdings: [], fx: null }).value;
+    expect(page).toContain('<span class="nav-group">');
     expect(page).toContain('class="nav-button nav-active" href="/all"');
     expect(page).toContain('class="nav-button" href="/"');
   });
@@ -677,5 +680,65 @@ describe("allPage", () => {
   it("shows a message when there are no holdings", () => {
     const page = allPage({ summaries: [], holdings: [], fx: null }).value;
     expect(page).toContain("보유 종목이 없습니다.");
+  });
+
+  it("renders an asset map with stock and cash tiles", () => {
+    const page = allPage({
+      summaries: [summary({ id: 3, securitiesEvalAmount: 750000, depositTotal: 10000, settlementDeposit: null, holdingCount: 1 })],
+      holdings: [accountHolding({ evalPflsRate: 7.14 })],
+      fx: null,
+    }).value;
+
+    expect(page).toContain('<svg class="treemap"');
+    expect(page).toContain('role="img" aria-label="자산 지도"');
+    expect(page).toContain('data-label="삼성전자"');
+    expect(page).toContain('data-label="현금 KRW"');
+    expect(page).toContain("tm-up-3");
+    expect(page).toContain("tm-cash");
+    expect((page.match(/class="tile /g) ?? []).length).toBe(2);
+    expect(page).not.toContain("NaN");
+  });
+
+  it("colors losses with the down (blue) tone", () => {
+    const page = allPage({
+      summaries: [],
+      holdings: [accountHolding({ evalPflsAmount: -50000 })],
+      fx: null,
+    }).value;
+    expect(page).toContain('class="tile tm-down-3"');
+    expect(page).not.toContain('class="tile tm-up');
+  });
+
+  it("lists every account that holds a merged instrument in the tile tooltip", () => {
+    const page = allPage({
+      summaries: [
+        summary({ id: 3, name: "계좌A", currency: "KRW", securitiesEvalAmount: 750000, depositTotal: 0, holdingCount: 1 }),
+        summary({ id: 4, name: "계좌B", currency: "KRW", securitiesEvalAmount: 420000, depositTotal: 0, holdingCount: 1 }),
+      ],
+      holdings: [
+        accountHolding({ accountId: 3, accountName: "계좌A", accountAlias: null, evalAmount: 750000, evalPflsRate: 5 }),
+        accountHolding({ accountId: 4, accountName: "계좌B", accountAlias: null, evalAmount: 420000, evalPflsRate: 5 }),
+      ],
+      fx: null,
+    }).value;
+
+    expect(page).toContain('data-accounts="계좌A, 계좌B"');
+    expect((page.match(/class="tile /g) ?? []).length).toBe(1);
+  });
+
+  it("adds a tile for every new instrument (extensible)", () => {
+    const page = allPage({
+      summaries: [],
+      holdings: [
+        accountHolding({ symbol: "005930", productName: "삼성전자" }),
+        accountHolding({ symbol: "000660", productName: "SK하이닉스" }),
+        accountHolding({ symbol: "QLD", productName: "QLD", market: "US", currency: "USD", evalAmount: 100, evalPflsRate: 2 }),
+      ],
+      fx,
+    }).value;
+
+    expect((page.match(/class="tile /g) ?? []).length).toBe(3);
+    expect(page).toContain('data-label="SK하이닉스"');
+    expect(page).toContain('data-label="QLD"');
   });
 });
