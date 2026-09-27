@@ -8,7 +8,7 @@ import type {
 } from "../db/portfolio";
 import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuantity, formatSignedMoney, pnlClass } from "../lib/format";
 import { html, type SafeHtml } from "../lib/html";
-import { evalAmount, netAsset } from "../lib/amounts";
+import { deposit, evalAmount, netAsset } from "../lib/amounts";
 import { areaPoints, linePoints, plotCoords, serializeChartPoints } from "../lib/chartData";
 import { countryFlag, providerName } from "../lib/labels";
 import { layout } from "./layout";
@@ -86,7 +86,7 @@ function accountsTable(accounts: AccountSummary[], fx: FxRate | null, showTotal 
   <td class="num" data-label="순자산">${moneyCell(netAsset(account), account.currency, fx)}</td>
   <td class="num" data-label="평가금액">${moneyCell(evalAmount(account), account.currency, fx)}</td>
   <td class="num ${pnlClass(account.evalPflsAmount)}" data-label="평가손익">${moneyCell(account.evalPflsAmount, account.currency, fx, true)}</td>
-  <td class="num" data-label="예수금">${moneyCell(account.depositTotal, account.currency, fx)}</td>
+  <td class="num" data-label="예수금">${moneyCell(deposit(account), account.currency, fx)}</td>
 </tr>`,
   );
 
@@ -158,7 +158,7 @@ function summaryList(account: Account, summary: AccountSummary | null, fx: FxRat
     <dt>(A) 매입금액</dt><dd>${moneyCell(summary?.purchaseAmountTotal, currency, fx)}</dd>
     <dt>(B) 평가손익</dt><dd class="${pnlClass(summary?.evalPflsAmount)}">${moneyCell(summary?.evalPflsAmount, currency, fx, true)}</dd>
     <dt>(C) 평가금액 <span class="muted label-sub">= (A) + (B)</span></dt><dd>${moneyCell(summary ? evalAmount(summary) : null, currency, fx)}</dd>
-    <dt>(D) 예수금</dt><dd>${moneyCell(summary?.depositTotal, currency, fx)}</dd>
+    <dt>(D) 예수금</dt><dd>${moneyCell(summary ? deposit(summary) : null, currency, fx)}</dd>
     <dt>(E) 순자산 <span class="muted label-sub">= (C) + (D)</span></dt><dd>${moneyCell(summary ? netAsset(summary) : null, currency, fx)}</dd>
   </dl>
 </div>
@@ -227,7 +227,7 @@ function historyTable(points: SnapshotPoint[], currency: string): SafeHtml {
   <td class="num" data-label="순자산">${formatMoney(netAsset(point), currency)}</td>
   <td class="num" data-label="평가금액">${formatMoney(evalAmount(point), currency)}</td>
   <td class="num ${pnlClass(point.evalPflsAmount)}" data-label="평가손익">${formatSignedMoney(point.evalPflsAmount, currency)}</td>
-  <td class="num" data-label="예수금">${formatMoney(point.depositTotal, currency)}</td>
+  <td class="num" data-label="예수금">${formatMoney(deposit(point), currency)}</td>
 </tr>`,
   );
   return html`<table class="responsive">

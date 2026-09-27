@@ -18,6 +18,7 @@ function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSu
     netAssetAmount: 0,
     evalPflsAmount: 0,
     depositTotal: 0,
+    settlementDeposit: null,
     purchaseAmountTotal: 0,
     securitiesEvalAmount: overrides.securitiesEvalAmount ?? overrides.netAssetAmount ?? 0,
     holdingCount: 0,
@@ -49,6 +50,7 @@ function point(overrides: Partial<SnapshotPoint> & { date: string }): SnapshotPo
     netAssetAmount: null,
     evalPflsAmount: null,
     depositTotal: null,
+    settlementDeposit: null,
     securitiesEvalAmount: overrides.securitiesEvalAmount ?? overrides.netAssetAmount ?? null,
     ...overrides,
   };
@@ -293,6 +295,35 @@ describe("accountsPage", () => {
     expect(page).toContain("₩200");
   });
 
+  it("prefers the D+2 settlement deposit for 예수금 and net asset", () => {
+    const page = accountsPage(
+      [
+        summary({
+          id: 3,
+          securitiesEvalAmount: 2_500_000,
+          depositTotal: 2_600_000,
+          settlementDeposit: 3_000,
+          holdingCount: 1,
+        }),
+      ],
+      null,
+    ).value;
+
+    expect(page).toContain("₩2,503,000");
+    expect(page).toContain("₩3,000");
+    expect(page).not.toContain("₩2,600,000");
+  });
+
+  it("falls back to the D+0 deposit when no D+2 figure exists", () => {
+    const page = accountsPage(
+      [summary({ id: 3, securitiesEvalAmount: 100, depositTotal: 259, settlementDeposit: null, holdingCount: 1 })],
+      null,
+    ).value;
+
+    expect(page).toContain("₩259");
+    expect(page).toContain("₩359");
+  });
+
   it("sorts investing accounts by net asset (fx converted)", () => {
     const page = accountsPage(
       [
@@ -310,7 +341,7 @@ describe("accountsPage", () => {
       account: { id: 3, provider: "kis", name: "Main", alias: null, accountNo: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-24" },
       summary: null,
       holdings: [holding({ evalAmount: 750000 })],
-      history: [{ date: "2026-09-24", securitiesEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000 }],
+      history: [{ date: "2026-09-24", securitiesEvalAmount: 750000, netAssetAmount: 760000, evalPflsAmount: 50000, depositTotal: 10000, settlementDeposit: null }],
       trades: [],
       fx: null,
     }).value;
@@ -320,6 +351,22 @@ describe("accountsPage", () => {
     expect(page).toContain('data-label="평가금액"');
     expect(page).not.toContain("&lt;tr");
     expect(page).not.toContain("<h3>");
+  });
+
+  it("shows the settlement deposit in the snapshot history", () => {
+    const page = accountPage({
+      account: { id: 3, provider: "kis", name: "Main", alias: null, accountNo: "00000000-01", country: "KR", currency: "KRW", snapshotDate: "2026-09-21" },
+      summary: null,
+      holdings: [],
+      history: [
+        point({ date: "2026-09-21", securitiesEvalAmount: 2_500_000, depositTotal: 2_600_000, settlementDeposit: 3_000 }),
+      ],
+      trades: [],
+      fx: null,
+    }).value;
+
+    expect(page).toContain("₩3,000");
+    expect(page).not.toContain("₩2,600,000");
   });
 
   it("renders a composition bar and per-holding allocation for weights", () => {

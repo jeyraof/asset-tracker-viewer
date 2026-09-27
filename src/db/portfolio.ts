@@ -9,7 +9,10 @@ export interface AccountSummary {
   snapshotDate: string | null;
   netAssetAmount: number | null;
   evalPflsAmount: number | null;
+  /** D+0 settled deposit. Use {@link deposit} for same-day-consistent cash. */
   depositTotal: number | null;
+  /** D+2 settlement-inclusive deposit; null for gold/US/Toss. */
+  settlementDeposit: number | null;
   purchaseAmountTotal: number | null;
   securitiesEvalAmount: number | null;
   /** Number of holdings in the account's latest snapshot. */
@@ -28,6 +31,7 @@ interface AccountSummaryRow {
   net_asset_amount: number | null;
   eval_pfls_amount: number | null;
   deposit_total: number | null;
+  settlement_deposit: number | null;
   purchase_amount_total: number | null;
   securities_eval_amount: number | null;
   holding_count: number;
@@ -78,6 +82,7 @@ export interface SnapshotPoint {
   netAssetAmount: number | null;
   evalPflsAmount: number | null;
   depositTotal: number | null;
+  settlementDeposit: number | null;
 }
 
 interface SnapshotRow {
@@ -86,6 +91,7 @@ interface SnapshotRow {
   net_asset_amount: number | null;
   eval_pfls_amount: number | null;
   deposit_total: number | null;
+  settlement_deposit: number | null;
 }
 
 export interface Trade {
@@ -134,6 +140,7 @@ function mapSummaryRow(row: AccountSummaryRow): AccountSummary {
     netAssetAmount: row.net_asset_amount,
     evalPflsAmount: row.eval_pfls_amount,
     depositTotal: row.deposit_total,
+    settlementDeposit: row.settlement_deposit,
     purchaseAmountTotal: row.purchase_amount_total,
     securitiesEvalAmount: row.securities_eval_amount,
     holdingCount: row.holding_count,
@@ -142,7 +149,7 @@ function mapSummaryRow(row: AccountSummaryRow): AccountSummary {
 
 const SUMMARY_SELECT = `SELECT a.id, a.provider, a.name, a.alias, a.account_no, a.country, a.currency,
          s.snapshot_date, s.net_asset_amount,
-         s.eval_pfls_amount, s.deposit_total, s.purchase_amount_total,
+         s.eval_pfls_amount, s.deposit_total, s.settlement_deposit, s.purchase_amount_total,
          s.securities_eval_amount,
          (SELECT COUNT(*) FROM holdings h
            WHERE h.account_id = a.id
@@ -233,7 +240,8 @@ export function listSnapshotHistory(
 ): Promise<SnapshotPoint[]> {
   return db
     .prepare(
-      `SELECT snapshot_date, securities_eval_amount, net_asset_amount, eval_pfls_amount, deposit_total
+      `SELECT snapshot_date, securities_eval_amount, net_asset_amount, eval_pfls_amount,
+              deposit_total, settlement_deposit
          FROM account_snapshots
         WHERE account_id = ?
         ORDER BY snapshot_date DESC
@@ -248,6 +256,7 @@ export function listSnapshotHistory(
         netAssetAmount: row.net_asset_amount,
         evalPflsAmount: row.eval_pfls_amount,
         depositTotal: row.deposit_total,
+        settlementDeposit: row.settlement_deposit,
       })),
     );
 }
