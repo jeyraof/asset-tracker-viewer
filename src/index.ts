@@ -22,6 +22,7 @@ import {
   listAccountSummaries,
   listFxRates,
   listLatestHoldings,
+  listLatestHoldingsAll,
   listRecentTrades,
   listSnapshotHistory,
 } from "./db/portfolio";
@@ -32,7 +33,7 @@ import type { SafeHtml } from "./lib/html";
 import { timingSafeEqualString } from "./lib/secure";
 import { loginPage, registerPage } from "./views/auth";
 import { notFoundPage } from "./views/error";
-import { accountPage, accountsPage, fxPage } from "./views/portfolio";
+import { accountPage, accountsPage, allPage, fxPage } from "./views/portfolio";
 import { statusPage } from "./views/status";
 
 const SECURITY_HEADERS: Record<string, string> = {
@@ -316,6 +317,16 @@ export default {
           getLatestFxRate(env.DB, "USD", "KRW"),
         ]);
         return htmlResponse(accountsPage(summaries, fx));
+      }
+
+      if (method === "GET" && pathname === "/all") {
+        if (!(await currentSession(env, request))) return redirect("/login");
+        const [summaries, holdings, fx] = await Promise.all([
+          listAccountSummaries(env.DB),
+          listLatestHoldingsAll(env.DB),
+          getLatestFxRate(env.DB, "USD", "KRW"),
+        ]);
+        return htmlResponse(allPage({ summaries, holdings, fx }));
       }
 
       if (method === "GET" && pathname === "/fx") {

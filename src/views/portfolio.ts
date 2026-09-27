@@ -1,5 +1,6 @@
 import type {
   Account,
+  AccountHolding,
   AccountSummary,
   FxRate,
   Holding,
@@ -8,6 +9,7 @@ import type {
 } from "../db/portfolio";
 import { formatDate, formatMoney, formatPercent, formatPercentPlain, formatQuantity, formatSignedMoney, pnlClass } from "../lib/format";
 import { html, type SafeHtml } from "../lib/html";
+import { aggregateHoldings, type MergedHolding } from "../lib/aggregate";
 import { deposit, evalAmount, netAsset } from "../lib/amounts";
 import { areaPoints, linePoints, plotCoords, serializeChartPoints } from "../lib/chartData";
 import { countryFlag, providerName } from "../lib/labels";
@@ -146,7 +148,116 @@ export function accountsPage(summaries: AccountSummary[], fx: FxRate | null): Sa
 ${accountsSection("기타 계좌", other, fx)}`
   }`;
 
-  return layout({ title: "계좌 · Asset Tracker", showNav: true, navExtra: fxLink(fx), body });
+  return layout({ title: "계좌별 · Asset Tracker", page: "accounts", showNav: true, navExtra: fxLink(fx), body });
+}
+
+/** Human-readable list of the accounts that contribute to a merged holding. */
+function mergedAccountLabel(accounts: MergedHolding["accounts"]): string {
+  return accounts
+    .map((account) => account.alias?.trim() || account.name?.trim() || providerName(account.provider))
+    .join(", ");
+}
+
+function allSummary(summaries: AccountSummary[], fx: FxRate | null): SafeHtml {
+  const canTotal = fx !== null || summaries.every((account) => account.currency === "KRW");
+  if (!canTotal) {
+    return html`<p class="muted">환율 정보가 없어 KRW 합계를 계산할 수 없습니다.</p>`;
+  }
+
+  const net = summaries.reduce((sum, account) => sum + krwAmount(netAsset(account), account.currency, fx), 0);
+  const evaluation = summaries.reduce((sum, account) => sum + krwAmount(evalAmount(account), account.currency, fx), 0);
+  const cash = summaries.reduce((sum, account) => sum + krwAmount(deposit(account), account.currency, fx), 0);
+
+  return html`<div class="cards">
+  <div class="card">
+    <dl>
+      <dt>순자산</dt><dd>${formatMoney(net, "KRW")}</dd>
+      <dt>평가금액</dt><dd>${formatMoney(evaluation, "KRW")}</dd>
+      <dt>예수금</dt><dd>${formatMoney(cash, "KRW")}</dd>
+      <dt>계좌</dt><dd>${summaries.length}</dd>
+    </dl>
+  </div>
+</div>`;
+}
+
+function allHoldingsTable(holdings: MergedHolding[], fx: FxRate | null): SafeHtml {
+  if (holdings.length === 0) return html`<p class="muted">보유 종목이 없습니다.</p>`;
+
+  const evalKrw = holdings.map((holding) => krwAmount(holding.evalAmount, holding.currency, fx));
+  const total = evalKrw.reduce((sum, value) => sum + value, 0);
+  const order = holdings
+    .map((_, index) => index)
+    .sort((a, b) => (evalKrw[b] ?? 0) - (evalKrw[a] ?? 0));
+  const weights = new Map<number, number | null>(
+    order.map((index) => [
+      index,
+      total > 0 && evalKrw[index] != null ? ((evalKrw[index] ?? 0) / total) * 100 : null,
+    ]),
+  );
+
+  const composition =
+    total > 0
+      ? html`<div class="composition">${order.map((index) => {
+          const weight = weights.get(index);
+          if (weight == null || weight <= 0) return html``;
+          return html`<span class="fill c${index % PALETTE_SIZE} w${Math.round(weight)}"></span>`;
+        })}</div>
+<ul class="legend">${order.map((index) => {
+          const holding = holdings[index];
+          const weight = weights.get(index);
+          if (!holding || weight == null) return html``;
+          return html`<li><span class="dot c${index % PALETTE_SIZE}"></span>${holding.productName ?? holding.symbol} ${formatPercentPlain(weight)}</li>`;
+        })}</ul>`
+      : html``;
+
+  const rows = order.map((index) => {
+    const holding = holdings[index];
+    if (!holding) return html``;
+    const color = index % PALETTE_SIZE;
+    const weight = weights.get(index) ?? null;
+    const allocation =
+      weight != null && weight > 0
+        ? html`<div class="alloc"><div class="bar"><span class="fill c${color} w${Math.round(weight)}"></span></div><span class="pct">${formatPercentPlain(weight)}</span></div>`
+        : html``;
+    return html`<tr>
+  <td class="row-title" data-label="종목">${holding.productName ?? holding.symbol}<div class="muted">${holding.market} · ${holding.symbol} · ${mergedAccountLabel(holding.accounts)}</div>${allocation}</td>
+  <td class="num" data-label="수량">${formatQuantity(holding.quantity)}</td>
+  <td class="num" data-label="평단">${moneyCell(holding.avgPrice, holding.currency, fx)}</td>
+  <td class="num" data-label="현재가">${moneyCell(holding.currentPrice, holding.currency, fx)}</td>
+  <td class="num" data-label="평가금액">${moneyCell(holding.evalAmount, holding.currency, fx)}</td>
+  <td class="num weight-cell" data-label="비중">${formatPercentPlain(weight)}</td>
+  <td class="num ${pnlClass(holding.evalPflsAmount)}" data-label="평가손익">${moneyCell(holding.evalPflsAmount, holding.currency, fx, true)}</td>
+  <td class="num ${pnlClass(holding.evalPflsAmount)}" data-label="수익률">${formatPercent(holding.evalPflsRate)}</td>
+</tr>`;
+  });
+
+  return html`${composition}
+<table class="responsive">
+  <thead>
+    <tr>
+      <th>종목</th><th>수량</th><th>평단</th><th>현재가</th><th>평가금액</th><th>비중</th><th>평가손익</th><th>수익률</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>`;
+}
+
+export interface AllPageInput {
+  summaries: AccountSummary[];
+  holdings: AccountHolding[];
+  fx: FxRate | null;
+}
+
+export function allPage(input: AllPageInput): SafeHtml {
+  const { summaries, holdings, fx } = input;
+  const merged = aggregateHoldings(holdings);
+
+  const body = html`<h2>모아보기 <span class="muted">${merged.length} 종목 · ${summaries.length} 계좌</span></h2>
+${allSummary(summaries, fx)}
+<h2>보유 종목</h2>
+${allHoldingsTable(merged, fx)}`;
+
+  return layout({ title: "모아보기 · Asset Tracker", page: "all", showNav: true, navExtra: fxLink(fx), body });
 }
 
 function summaryList(account: Account, summary: AccountSummary | null, fx: FxRate | null): SafeHtml {

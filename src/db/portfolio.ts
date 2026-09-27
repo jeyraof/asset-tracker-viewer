@@ -233,6 +233,62 @@ export function listLatestHoldings(db: D1Database, accountId: number): Promise<H
     );
 }
 
+export interface AccountHolding extends Holding {
+  accountId: number;
+  provider: string;
+  accountName: string | null;
+  accountAlias: string | null;
+  accountNo: string | null;
+  country: string;
+}
+
+interface AccountHoldingRow extends HoldingRow {
+  account_id: number;
+  provider: string;
+  account_name: string | null;
+  account_alias: string | null;
+  account_no: string | null;
+  country: string;
+}
+
+/** Latest holdings across every active account, ordered by evaluation amount. */
+export function listLatestHoldingsAll(db: D1Database): Promise<AccountHolding[]> {
+  return db
+    .prepare(
+      `SELECT h.account_id, a.provider, a.name AS account_name, a.alias AS account_alias,
+              a.account_no, a.country,
+              h.market, h.symbol, h.product_name, h.currency, h.quantity, h.avg_price,
+              h.purchase_amount, h.current_price, h.eval_amount, h.eval_pfls_amount, h.eval_pfls_rate
+         FROM holdings h
+         JOIN accounts a ON a.id = h.account_id
+        WHERE a.active = 1
+          AND h.snapshot_date = (SELECT MAX(snapshot_date) FROM holdings WHERE account_id = h.account_id)
+        ORDER BY COALESCE(h.eval_amount, 0) DESC`,
+    )
+    .all<AccountHoldingRow>()
+    .then(({ results }) =>
+      (results ?? []).map((row) => ({
+        accountId: row.account_id,
+        provider: row.provider,
+        accountName: row.account_name,
+        accountAlias: row.account_alias,
+        accountNo: row.account_no,
+        country: row.country,
+        market: row.market,
+        symbol: row.symbol,
+        productName: row.product_name,
+        currency: row.currency,
+        quantity: row.quantity,
+        avgPrice: row.avg_price,
+        purchaseAmount: row.purchase_amount,
+        currentPrice: row.current_price,
+        evalAmount: row.eval_amount,
+        evalPflsAmount: row.eval_pfls_amount,
+        evalPflsRate: row.eval_pfls_rate,
+      })),
+    );
+}
+
 export function listSnapshotHistory(
   db: D1Database,
   accountId: number,

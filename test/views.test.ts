@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { accountPage, accountsPage, fxPage } from "../src/views/portfolio";
+import { accountPage, accountsPage, allPage, fxPage } from "../src/views/portfolio";
 import { loginPage, registerPage } from "../src/views/auth";
 import { notFoundPage } from "../src/views/error";
 import { layout } from "../src/views/layout";
 import { safe } from "../src/lib/html";
-import type { AccountSummary, FxRate, Holding, SnapshotPoint, Trade } from "../src/db/portfolio";
+import type { AccountHolding, AccountSummary, FxRate, Holding, SnapshotPoint, Trade } from "../src/db/portfolio";
 
 function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSummary {
   return {
@@ -97,6 +97,29 @@ function detail(
     history: overrides.history ?? [],
     trades: overrides.trades ?? [],
     fx: overrides.fx ?? null,
+  };
+}
+
+function accountHolding(overrides: Partial<AccountHolding> = {}): AccountHolding {
+  return {
+    accountId: 3,
+    provider: "kis",
+    accountName: "KIS 00000000-01",
+    accountAlias: "예시 연금저축",
+    accountNo: "00000000-01",
+    country: "KR",
+    market: "KRX",
+    symbol: "005930",
+    productName: "삼성전자",
+    currency: "KRW",
+    quantity: 10,
+    avgPrice: 70000,
+    purchaseAmount: 700000,
+    currentPrice: 75000,
+    evalAmount: 750000,
+    evalPflsAmount: 50000,
+    evalPflsRate: 7.14,
+    ...overrides,
   };
 }
 
@@ -211,7 +234,7 @@ describe("accountsPage", () => {
       [
         summary({
           id: 3,
-          name: "KIS 10092224-22",
+          name: "KIS 00000000-01",
           netAssetAmount: 2585985,
           evalPflsAmount: 26356,
           purchaseAmountTotal: 25599146,
@@ -222,7 +245,7 @@ describe("accountsPage", () => {
       fx,
     ).value;
 
-    expect(page).toContain('<td class="row-title" data-label="계좌"><a href="/accounts/3">KIS 10092224-22</a>');
+    expect(page).toContain('<td class="row-title" data-label="계좌"><a href="/accounts/3">KIS 00000000-01</a>');
     expect(page).toContain('<span title="kis">한국투자증권</span> · 🇰🇷');
     expect(page).not.toContain("&lt;td");
     expect(page).toContain("USD/KRW");
@@ -406,13 +429,13 @@ describe("accountsPage", () => {
   });
 
   it("prefers the alias and shows the account id in small text", () => {
-    const page = accountsPage([summary({ id: 3, alias: "퇴직연금", name: "KIS 10092224-22" })], null).value;
+    const page = accountsPage([summary({ id: 3, alias: "퇴직연금", name: "KIS 00000000-01" })], null).value;
     expect(page).toContain('퇴직연금 <span class="muted label-sub">(00000000-01)</span>');
   });
 
   it("shows the name when there is no alias", () => {
-    const page = accountsPage([summary({ id: 3, alias: null, name: "KIS 10092224-22" })], null).value;
-    expect(page).toContain('<a href="/accounts/3">KIS 10092224-22</a>');
+    const page = accountsPage([summary({ id: 3, alias: null, name: "KIS 00000000-01" })], null).value;
+    expect(page).toContain('<a href="/accounts/3">KIS 00000000-01</a>');
     expect(page).not.toContain("label-sub");
   });
 
@@ -592,5 +615,67 @@ describe("layout", () => {
     expect(page).toContain('href="/favicon-32x32.png"');
     expect(page).toContain('href="/apple-touch-icon.png"');
     expect(page).toContain('<link rel="manifest" href="/site.webmanifest">');
+  });
+
+  it("marks the active nav view", () => {
+    const page = allPage({ summaries: [], holdings: [], fx: null }).value;
+    expect(page).toContain('class="nav-button nav-active" href="/all"');
+    expect(page).toContain('class="nav-button" href="/"');
+  });
+});
+
+describe("allPage", () => {
+  it("renders merged holdings with KRW totals", () => {
+    const page = allPage({
+      summaries: [
+        summary({ id: 3, securitiesEvalAmount: 750000, depositTotal: 10000, settlementDeposit: null, holdingCount: 1 }),
+      ],
+      holdings: [accountHolding()],
+      fx: null,
+    }).value;
+
+    expect(page).toContain("모아보기");
+    expect(page).toContain("삼성전자");
+    expect(page).toContain("₩750,000");
+    expect(page).toContain("₩760,000");
+    expect(page).toContain("예시 연금저축");
+    expect(page).toContain("1 종목 · 1 계좌");
+  });
+
+  it("merges the same instrument held in several accounts into one row", () => {
+    const page = allPage({
+      summaries: [
+        summary({ id: 3, name: "계좌A", currency: "KRW", securitiesEvalAmount: 750000, depositTotal: 0, holdingCount: 1 }),
+        summary({ id: 4, name: "계좌B", currency: "KRW", securitiesEvalAmount: 420000, depositTotal: 0, holdingCount: 1 }),
+      ],
+      holdings: [
+        accountHolding({ accountId: 3, accountName: "계좌A", accountAlias: null, quantity: 10, purchaseAmount: 700000, evalAmount: 750000, evalPflsAmount: 50000 }),
+        accountHolding({ accountId: 4, accountName: "계좌B", accountAlias: null, quantity: 5, purchaseAmount: 400000, evalAmount: 420000, evalPflsAmount: 20000 }),
+      ],
+      fx: null,
+    }).value;
+
+    expect((page.match(/data-label="수량"/g) ?? []).length).toBe(1);
+    expect(page).toContain("계좌A, 계좌B");
+    expect(page).toContain("₩1,170,000");
+    expect(page).toContain("1 종목 · 2 계좌");
+  });
+
+  it("converts USD holdings to KRW at the latest rate", () => {
+    const page = allPage({
+      summaries: [summary({ id: 27, name: "US", currency: "USD", securitiesEvalAmount: 2, depositTotal: 0, holdingCount: 1 })],
+      holdings: [
+        accountHolding({ accountId: 27, accountName: "US", accountAlias: null, country: "US", market: "US", symbol: "QLD", productName: "QLD", currency: "USD", quantity: 1, avgPrice: 1, purchaseAmount: 1, currentPrice: 2, evalAmount: 2, evalPflsAmount: 1, evalPflsRate: 100 }),
+      ],
+      fx,
+    }).value;
+
+    expect(page).toContain("₩2,600");
+    expect(page).toContain("US$2.00");
+  });
+
+  it("shows a message when there are no holdings", () => {
+    const page = allPage({ summaries: [], holdings: [], fx: null }).value;
+    expect(page).toContain("보유 종목이 없습니다.");
   });
 });

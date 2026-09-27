@@ -52,6 +52,12 @@ describe("router", () => {
     expect(response.headers.get("location")).toBe("/login");
   });
 
+  it("guards the 모아보기 page behind login", async () => {
+    const response = await fetch("/all");
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/login");
+  });
+
   it("rejects a forged session cookie", async () => {
     const response = await fetch("/", { headers: { cookie: "__Host-session=forged.value" } });
     expect(response.status).toBe(303);
