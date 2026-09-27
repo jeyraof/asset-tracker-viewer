@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { accountPage, accountsPage, fxPage } from "../src/views/portfolio";
 import { loginPage, registerPage } from "../src/views/auth";
 import { notFoundPage } from "../src/views/error";
+import { layout } from "../src/views/layout";
+import { safe } from "../src/lib/html";
 import type { AccountSummary, FxRate, Holding, SnapshotPoint, Trade } from "../src/db/portfolio";
 
 function summary(overrides: Partial<AccountSummary> & { id: number }): AccountSummary {
@@ -531,5 +533,17 @@ describe("accountsPage", () => {
     expect(registerPage({ setupTokenRequired: true }).value).toContain('id="setup-token"');
     expect(registerPage({ setupTokenRequired: false }).value).not.toContain('id="setup-token"');
     expect(notFoundPage().value).toContain("404");
+  });
+});
+
+describe("layout", () => {
+  it("links the favicon set and web manifest", () => {
+    const page = layout({ title: "Asset Tracker", body: safe("") }).value;
+    expect(page).toContain('<link rel="icon" href="/favicon.ico" sizes="any">');
+    expect(page).toContain('<link rel="icon" type="image/svg+xml" href="/favicon.svg">');
+    expect(page).toContain('href="/favicon-16x16.png"');
+    expect(page).toContain('href="/favicon-32x32.png"');
+    expect(page).toContain('href="/apple-touch-icon.png"');
+    expect(page).toContain('<link rel="manifest" href="/site.webmanifest">');
   });
 });

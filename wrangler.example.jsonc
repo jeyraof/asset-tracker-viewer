@@ -22,6 +22,8 @@
   "workers_dev": false,
   "preview_urls": false,
   "routes": [{ "pattern": "asset.<domain>", "custom_domain": true }],
+  // favicons and other static files, served before the Worker for matching paths.
+  "assets": { "directory": "./public" },
   "d1_databases": [
     {
       // Existing asset database. Queried read-only; never written to.
