@@ -778,3 +778,19 @@ describe("allPage", () => {
     expect(page).toContain('data-label="QLD"');
   });
 });
+
+describe("portfolio tabs", () => {
+  it("renders 계좌별 and 모아보기 side by side with the requested pane active", () => {
+    const accounts = accountsPage([summary({ id: 1 })], null).value;
+    expect(accounts).toContain('<div class="tabs"><div class="tabs-track at-0">');
+    expect(accounts).toContain('<section class="tab-pane" data-tab="accounts" data-href="/"');
+    expect(accounts).toContain('<section class="tab-pane is-idle" data-tab="all" data-href="/all" data-title="모아보기 · Asset Tracker" inert aria-hidden="true">');
+    expect(accounts).toContain("<title>계좌별 · Asset Tracker</title>");
+
+    const all = allPage({ summaries: [summary({ id: 1 })], holdings: [], fx: null }).value;
+    expect(all).toContain('<div class="tabs-track at-1">');
+    expect(all).toContain('<section class="tab-pane is-idle" data-tab="accounts" data-href="/"');
+    expect(all).toContain('<section class="tab-pane" data-tab="all" data-href="/all"');
+    expect(all).toContain("<title>모아보기 · Asset Tracker</title>");
+  });
+});

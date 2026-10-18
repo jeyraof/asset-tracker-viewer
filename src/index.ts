@@ -312,11 +312,12 @@ export default {
 
       if (method === "GET" && pathname === "/") {
         if (!(await currentSession(env, request))) return redirect("/login");
-        const [summaries, fx] = await Promise.all([
+        const [summaries, holdings, fx] = await Promise.all([
           listAccountSummaries(env.DB),
+          listLatestHoldingsAll(env.DB),
           getLatestFxRate(env.DB, "USD", "KRW"),
         ]);
-        return htmlResponse(accountsPage(summaries, fx));
+        return htmlResponse(accountsPage(summaries, fx, holdings));
       }
 
       if (method === "GET" && pathname === "/all") {

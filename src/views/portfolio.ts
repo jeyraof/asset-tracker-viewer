@@ -139,18 +139,14 @@ function accountsSection(
 ${accountsTable(accounts, fx, showTotal)}`;
 }
 
-export function accountsPage(summaries: AccountSummary[], fx: FxRate | null): SafeHtml {
+function accountsBody(summaries: AccountSummary[], fx: FxRate | null): SafeHtml {
   const investing = summaries.filter((account) => account.holdingCount > 0).sort(byNetDesc(fx));
   const other = summaries.filter((account) => account.holdingCount === 0).sort(byNetDesc(fx));
 
-  const body = html`${
-    summaries.length === 0
-      ? html`<h2>계좌</h2><p class="muted">표시할 계좌가 없습니다.</p>`
-      : html`${accountsSection("투자 중", investing, fx, true)}
-${accountsSection("기타 계좌", other, fx)}`
-  }`;
-
-  return layout({ title: "계좌별 · Asset Tracker", page: "accounts", showNav: true, navExtra: fxLink(fx), body });
+  return summaries.length === 0
+    ? html`<h2>계좌</h2><p class="muted">표시할 계좌가 없습니다.</p>`
+    : html`${accountsSection("투자 중", investing, fx, true)}
+${accountsSection("기타 계좌", other, fx)}`;
 }
 
 /** Human-readable list of the accounts that contribute to a merged holding. */
@@ -359,18 +355,53 @@ export interface AllPageInput {
   fx: FxRate | null;
 }
 
-export function allPage(input: AllPageInput): SafeHtml {
+function allBody(input: AllPageInput): SafeHtml {
   const { summaries, holdings, fx } = input;
   const merged = aggregateHoldings(holdings);
 
-  const body = html`<h2>모아보기 <span class="muted">${merged.length} 종목 · ${summaries.length} 계좌</span></h2>
+  return html`<h2>모아보기 <span class="muted">${merged.length} 종목 · ${summaries.length} 계좌</span></h2>
 ${allSummary(summaries, fx)}
 <h2>보유 종목</h2>
 ${allHoldingsTable(merged, fx)}
 <h2>자산 지도</h2>
 ${assetMap(merged, summaries, fx)}`;
+}
 
-  return layout({ title: "모아보기 · Asset Tracker", page: "all", showNav: true, navExtra: fxLink(fx), body });
+type PortfolioTab = "accounts" | "all";
+
+const PORTFOLIO_TABS: { tab: PortfolioTab; href: string; title: string }[] = [
+  { tab: "accounts", href: "/", title: "계좌별 · Asset Tracker" },
+  { tab: "all", href: "/all", title: "모아보기 · Asset Tracker" },
+];
+
+/**
+ * 계좌별 and 모아보기 render side by side in one document so client.js can swipe between
+ * them with the neighbouring view visible; `/` and `/all` only differ in the active pane.
+ */
+function portfolioTabsPage(active: PortfolioTab, input: AllPageInput): SafeHtml {
+  const activeIndex = PORTFOLIO_TABS.findIndex((entry) => entry.tab === active);
+  const panes = PORTFOLIO_TABS.map((entry) => {
+    const idle = entry.tab !== active;
+    const content = entry.tab === "accounts" ? accountsBody(input.summaries, input.fx) : allBody(input);
+    return html`<section class="tab-pane${idle ? " is-idle" : ""}" data-tab="${entry.tab}" data-href="${entry.href}" data-title="${entry.title}"${idle ? html` inert aria-hidden="true"` : html``}>
+${content}
+</section>`;
+  });
+  const body = html`<div class="tabs"><div class="tabs-track at-${activeIndex}">${panes}</div></div>`;
+  const title = PORTFOLIO_TABS[activeIndex]?.title ?? "Asset Tracker";
+  return layout({ title, page: active, showNav: true, navExtra: fxLink(input.fx), body });
+}
+
+export function accountsPage(
+  summaries: AccountSummary[],
+  fx: FxRate | null,
+  holdings: AccountHolding[] = [],
+): SafeHtml {
+  return portfolioTabsPage("accounts", { summaries, holdings, fx });
+}
+
+export function allPage(input: AllPageInput): SafeHtml {
+  return portfolioTabsPage("all", input);
 }
 
 function summaryList(account: Account, summary: AccountSummary | null, fx: FxRate | null): SafeHtml {

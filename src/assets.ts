@@ -14,11 +14,12 @@ export const STYLES = `:root {
   --down: #1d4ed8;
   --accent: #2563eb;
   --accent-soft: rgba(37, 99, 235, 0.15);
+  --page-pad: 1.5rem;
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  padding: 1.5rem;
+  padding: var(--page-pad);
   background: var(--bg);
   color: var(--fg);
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -194,8 +195,22 @@ details > summary {
   list-style-position: inside;
 }
 
+/* 계좌별 / 모아보기 panes side by side; client.js drags the track on horizontal swipes.
+   The strip bleeds to the screen edges so the neighbouring pane slides in from the edge. */
+.tabs { margin: 0 calc(-1 * var(--page-pad)); overflow: hidden; overflow: clip; }
+.tabs-track { display: flex; align-items: flex-start; }
+.tabs-track.at-1 { transform: translateX(-100%); }
+.tabs-track.is-animating { transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tab-pane { flex: 0 0 100%; min-width: 0; padding: 0 var(--page-pad); }
+.tab-pane > h2:first-child { margin-top: 0.5rem; }
+.tab-pane.is-idle { height: 0; overflow: hidden; visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .tabs-track.is-animating { transition: none; }
+}
+
 @media (max-width: 640px) {
-  body { padding: 0.75rem; }
+  :root { --page-pad: 0.75rem; }
+  .tab-pane > h2:first-child { margin-top: 0.6rem; }
   header { flex-wrap: wrap; align-items: center; margin-bottom: 1rem; padding-bottom: 0.6rem; }
   h1 { font-size: 1.1rem; }
   h2 { font-size: 0.95rem; margin: 1.6rem 0 0.5rem; }
@@ -575,6 +590,221 @@ export const CLIENT_JS = `(function () {
     }
   }
 
+  // 계좌별 / 모아보기 are rendered side by side in .tabs. Swiping drags the track so the
+  // neighbouring pane slides in; the header tabs animate the same way. The URL and title are
+  // swapped with replaceState, so / and /all still open the matching pane directly.
+  const SWIPE_EDGE = 16; // leave screen edges to the browser's own back/forward gestures
+  const SWIPE_LOCK = 10; // px of movement before deciding horizontal vs vertical
+  const SETTLE_MS = 320; // fallback when transitionend does not fire (e.g. reduced motion)
+
+  // True when the touch started inside something that can still scroll horizontally in the
+  // direction of the gesture (e.g. a wide table), so native scrolling should win.
+  function canScrollX(start, stop, dx) {
+    for (let el = start; el && el !== stop; el = el.parentElement) {
+      if (el.scrollWidth <= el.clientWidth + 1) continue;
+      const overflow = getComputedStyle(el).overflowX;
+      if (overflow !== "auto" && overflow !== "scroll") continue;
+      if (dx < 0 && el.scrollLeft + el.clientWidth < el.scrollWidth - 1) return true;
+      if (dx > 0 && el.scrollLeft > 0) return true;
+    }
+    return false;
+  }
+
+  function enhanceTabs() {
+    const root = document.querySelector(".tabs");
+    const track = root && root.querySelector(".tabs-track");
+    if (!root || !track) return;
+    const panes = Array.prototype.filter.call(track.children, function (el) {
+      return el.classList.contains("tab-pane");
+    });
+    if (panes.length < 2) return;
+    let index = 0;
+    for (let i = 0; i < panes.length; i += 1) if (!panes[i].classList.contains("is-idle")) index = i;
+
+    const links = document.querySelectorAll(".nav-group a.nav-button");
+    function paneIndexForLink(link) {
+      const path = new URL(link.href, window.location.href).pathname;
+      for (let i = 0; i < panes.length; i += 1) if (panes[i].dataset.href === path) return i;
+      return -1;
+    }
+
+    let busy = false;
+    let peeking = -1;
+
+    function setTrack(offset, animate) {
+      track.classList.remove("at-1");
+      track.classList.toggle("is-animating", !!animate);
+      track.style.transform = "translateX(calc(" + -index * 100 + "% + " + offset + "px))";
+    }
+
+    // Show a neighbouring pane beside the current one, aligned to the top of the viewport.
+    function peek(i) {
+      if (peeking === i) return;
+      unpeek();
+      const pane = panes[i];
+      if (!pane) return;
+      peeking = i;
+      pane.classList.remove("is-idle");
+      const shift = Math.max(0, window.scrollY - (root.getBoundingClientRect().top + window.scrollY));
+      pane.style.transform = shift ? "translateY(" + shift + "px)" : "";
+    }
+
+    function unpeek() {
+      if (peeking < 0 || peeking === index) {
+        peeking = -1;
+        return;
+      }
+      panes[peeking].classList.add("is-idle");
+      panes[peeking].style.transform = "";
+      peeking = -1;
+    }
+
+    function activate(next) {
+      const top = root.getBoundingClientRect().top + window.scrollY;
+      const scrollY = window.scrollY;
+      for (let i = 0; i < panes.length; i += 1) {
+        const pane = panes[i];
+        const on = i === next;
+        pane.classList.toggle("is-idle", !on);
+        pane.style.transform = "";
+        if (on) {
+          pane.removeAttribute("inert");
+          pane.removeAttribute("aria-hidden");
+        } else {
+          pane.setAttribute("inert", "");
+          pane.setAttribute("aria-hidden", "true");
+        }
+      }
+      peeking = -1;
+      index = next;
+      setTrack(0, false);
+      if (scrollY > top) window.scrollTo(0, top);
+
+      const pane = panes[next];
+      document.body.dataset.page = pane.dataset.tab || "";
+      if (pane.dataset.title) document.title = pane.dataset.title;
+      if (pane.dataset.href && pane.dataset.href !== window.location.pathname) {
+        history.replaceState(null, "", pane.dataset.href);
+      }
+      for (let i = 0; i < links.length; i += 1) {
+        links[i].classList.toggle("nav-active", paneIndexForLink(links[i]) === next);
+      }
+    }
+
+    // Animate the track from its current offset to next (or back to the current pane).
+    function settle(next) {
+      busy = true;
+      let done = false;
+      function finish() {
+        if (done) return;
+        done = true;
+        track.removeEventListener("transitionend", onEnd);
+        track.classList.remove("is-animating");
+        if (next !== index) activate(next);
+        else unpeek();
+        busy = false;
+      }
+      function onEnd(event) {
+        if (event.target === track) finish();
+      }
+      track.addEventListener("transitionend", onEnd);
+      window.setTimeout(finish, SETTLE_MS);
+      track.classList.add("is-animating");
+      track.style.transform = "translateX(" + -next * 100 + "%)";
+    }
+
+    function goTo(next) {
+      if (busy || next === index || next < 0 || next >= panes.length) return;
+      peek(next);
+      setTrack(0, false);
+      void track.offsetWidth; // commit the start position before animating
+      settle(next);
+    }
+
+    for (let i = 0; i < links.length; i += 1) {
+      (function (link) {
+        link.addEventListener("click", function (event) {
+          if (event.defaultPrevented || event.button !== 0) return;
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          const next = paneIndexForLink(link);
+          if (next < 0) return;
+          event.preventDefault();
+          goTo(next);
+        });
+      })(links[i]);
+    }
+
+    let tracking = false;
+    let locked = false;
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+    let dx = 0;
+    let startTarget = null;
+
+    root.addEventListener("touchstart", function (event) {
+      tracking = false;
+      if (busy || event.touches.length !== 1) return;
+      const touch = event.touches[0];
+      if (touch.clientX < SWIPE_EDGE || touch.clientX > window.innerWidth - SWIPE_EDGE) return;
+      const target = event.target;
+      if (target.closest && target.closest(".chart-plot, input, textarea, select")) return;
+      tracking = true;
+      locked = false;
+      startX = touch.clientX;
+      startY = touch.clientY;
+      startTime = Date.now();
+      startTarget = target;
+      dx = 0;
+    }, { passive: true });
+
+    root.addEventListener("touchmove", function (event) {
+      if (!tracking) return;
+      if (event.touches.length !== 1) {
+        tracking = false;
+        if (locked) settle(index);
+        locked = false;
+        return;
+      }
+      const touch = event.touches[0];
+      dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (!locked) {
+        if (Math.abs(dx) < SWIPE_LOCK && Math.abs(dy) < SWIPE_LOCK) return;
+        if (Math.abs(dx) < Math.abs(dy) * 1.5 || !event.cancelable || canScrollX(startTarget, root, dx)) {
+          tracking = false;
+          return;
+        }
+        locked = true;
+      }
+      event.preventDefault();
+      const neighbour = dx < 0 ? index + 1 : index - 1;
+      const exists = neighbour >= 0 && neighbour < panes.length;
+      if (exists) peek(neighbour);
+      setTrack(exists ? dx : dx / 4, false); // rubber-band when there is nothing on that side
+    }, { passive: false });
+
+    function end() {
+      if (!tracking) return;
+      tracking = false;
+      if (!locked) return;
+      locked = false;
+      const neighbour = dx < 0 ? index + 1 : index - 1;
+      const exists = neighbour >= 0 && neighbour < panes.length;
+      const velocity = Math.abs(dx) / Math.max(1, Date.now() - startTime);
+      const far = Math.abs(dx) > Math.min(100, root.clientWidth * 0.25);
+      const flick = Math.abs(dx) > 30 && velocity > 0.5;
+      settle(exists && (far || flick) ? neighbour : index);
+    }
+
+    root.addEventListener("touchend", end);
+    root.addEventListener("touchcancel", function () {
+      if (tracking && locked) settle(index);
+      tracking = false;
+      locked = false;
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     const page = document.body.dataset.page;
     const loginButton = document.getElementById("login-button");
@@ -582,6 +812,7 @@ export const CLIENT_JS = `(function () {
     enhanceCharts();
     enhanceTips();
     enhanceTreemap();
+    enhanceTabs();
 
     if (page === "login" && loginButton) {
       loginButton.addEventListener("click", async function () {
